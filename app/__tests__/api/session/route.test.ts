@@ -71,7 +71,11 @@ describe('/api/session endpoint', () => {
 
       expect(response.status).toBe(200);
       expect(responseData).toEqual({ valid: false });
-      expect(consoleSpy).toHaveBeenCalledWith('Error getting session:', expect.any(Error));
+      expect(consoleSpy).toHaveBeenCalledWith('[ERROR] Error getting session', expect.objectContaining({
+        error: expect.objectContaining({
+          message: 'Redis connection failed'
+        })
+      }));
       
       consoleSpy.mockRestore();
     });
@@ -195,7 +199,11 @@ describe('/api/session endpoint', () => {
 
       expect(response.status).toBe(500);
       expect(responseData).toEqual({ error: 'Failed to clear session' });
-      expect(consoleSpy).toHaveBeenCalledWith('Error clearing session:', expect.any(Error));
+      expect(consoleSpy).toHaveBeenCalledWith('[ERROR] Error clearing session', expect.objectContaining({
+        error: expect.objectContaining({
+          message: expect.any(String)
+        })
+      }));
       
       consoleSpy.mockRestore();
     });
@@ -221,7 +229,11 @@ describe('/api/session endpoint', () => {
 
       expect(response.status).toBe(500);
       expect(responseData).toEqual({ error: 'Failed to clear session' });
-      expect(consoleSpy).toHaveBeenCalledWith('Error clearing session:', expect.any(Error));
+      expect(consoleSpy).toHaveBeenCalledWith('[ERROR] Error clearing session', expect.objectContaining({
+        error: expect.objectContaining({
+          message: expect.any(String)
+        })
+      }));
       
       consoleSpy.mockRestore();
     });
@@ -247,7 +259,11 @@ describe('/api/session endpoint', () => {
 
       expect(response.status).toBe(500);
       expect(responseData).toEqual({ error: 'Failed to clear session' });
-      expect(consoleSpy).toHaveBeenCalledWith('Error clearing session:', expect.any(Error));
+      expect(consoleSpy).toHaveBeenCalledWith('[ERROR] Error clearing session', expect.objectContaining({
+        error: expect.objectContaining({
+          message: expect.any(String)
+        })
+      }));
       
       consoleSpy.mockRestore();
     });

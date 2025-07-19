@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { startGame } from '@/app/lib/game-state-transitions';
 import { SessionManager } from '@/app/lib/player-session';
 import { rateLimit } from '@/app/lib/rate-limit-middleware';
+import { logger } from '@/app/lib/logger';
 
 /**
  * Starts a game session for a lobby
@@ -48,17 +49,23 @@ export const POST = rateLimit('STANDARD')(async function handleStartGame(request
       return NextResponse.json({ error: 'Lobby ID is required' }, { status: 400 });
     }
     
+    // Log the start game attempt
+    logger.debug('Attempting to start game via API', { lobbyId, playerId });
+    
     // Attempt to start the game (will fail if player is not host)
     const success = await startGame(lobbyId, playerId);
     
     // Check if the player has permission to start the game
     if (!success) {
+      logger.warn('Failed to start game', { lobbyId, playerId, reason: 'Permission denied or invalid state' });
       return NextResponse.json({ error: 'Failed to start game. Are you the host?' }, { status: 403 });
     }
     
+    logger.info('Game started successfully', { lobbyId, playerId });
+    
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[START GAME] Error:', error);
+    logger.error('Failed to start game', error as Error);
     return NextResponse.json({ error: 'Failed to start game' }, { status: 500 });
   }
 });

@@ -12,7 +12,7 @@ import type { NextRequest } from 'next/server';
  * Middleware function to protect lobby routes
  * 
  * @description Intercepts requests to lobby pages and validates player authentication.
- * Players without a valid playerId cookie are redirected to the join page.
+ * Players without a valid session cookie are redirected to the join page.
  * 
  * @param {NextRequest} request - Incoming request object
  * @returns {NextResponse} Response object (redirect or pass-through)
@@ -34,16 +34,16 @@ export async function middleware(request: NextRequest) {
     const lobbyId = request.nextUrl.pathname.split('/')[2];
     
     if (lobbyId) {
-      // Check if player has a playerId cookie
-      const playerId = request.cookies.get('playerId')?.value;
+      // Check if player has a session cookie
+      const sessionCookie = request.cookies.get('emoji-hunt-session')?.value;
       
-      // If no playerId cookie, redirect to join screen
+      // If no session cookie, redirect to join screen
       // The join parameter pre-fills the lobby code
-      if (!playerId) {
+      if (!sessionCookie) {
         return NextResponse.redirect(new URL(`/?join=${lobbyId}`, request.url));
       }
       
-      // If they have a playerId, let them through to the lobby page
+      // If they have a session, let them through to the lobby page
       // The page will handle checking if they're actually in the lobby
     }
   }

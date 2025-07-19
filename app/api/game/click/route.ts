@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { handleEmojiClick } from '@/app/lib/game-engine';
 import { SessionManager } from '@/app/lib/player-session';
 import { withRateLimitedRoute } from '@/app/lib/rate-limit-middleware';
+import { logger } from '@/app/lib/logger';
 
 /**
  * Handles emoji click events in the game
@@ -53,8 +54,7 @@ async function handleClick(request: NextRequest) {
     
     return NextResponse.json(result);
   } catch (error) {
-    // Log error for debugging (in production, use proper logging service)
-    console.error('Error processing emoji click:', error);
+    logger.error('Error processing emoji click', error as Error);
     return NextResponse.json({ error: 'Failed to process click' }, { status: 500 });
   }
 }

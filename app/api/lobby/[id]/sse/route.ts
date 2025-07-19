@@ -3,6 +3,7 @@ import { getLobby } from '@/app/lib/game-state-async';
 import { setex, del, lrange, rpush } from '@/app/lib/upstash-redis';
 import { checkDisconnectedPlayers } from '@/app/lib/player-heartbeat';
 import { SessionManager } from '@/app/lib/player-session';
+import { logger } from '@/app/lib/logger';
 
 /**
  * Server-Sent Events (SSE) endpoint for real-time lobby updates
@@ -19,8 +20,9 @@ import { SessionManager } from '@/app/lib/player-session';
  * - Connection resilience with keepalive messages
  */
 
-// Edge runtime allows long-lived connections
-export const runtime = 'edge';
+// Edge runtime allows long-lived connections in production
+// In development, use Node.js runtime for better SSE support
+export const runtime = process.env.NODE_ENV === 'development' ? 'nodejs' : 'edge';
 export const dynamic = 'force-dynamic';
 
 // Standard SSE headers for proper streaming
@@ -100,6 +102,8 @@ export async function GET(
     async start(controller) {
       let isConnectionClosed = false;
       
+      logger.info('SSE connection established', { lobbyId, playerId });
+      
       // Send initial connection confirmation with player status
       const connectionEvent = `event: connected\ndata: ${JSON.stringify({ 
         playerId, 
@@ -110,6 +114,17 @@ export async function GET(
       
       // SSE comment syntax - keeps connection alive
       controller.enqueue(encoder.encode(': keepalive\n\n'));
+      
+      // Immediately check for any existing events
+      try {
+        const initialEvents = await lrange(`lobby:${lobbyId}:events`, 0, -1) as any[];
+        logger.info('Initial event check', { lobbyId, eventCount: initialEvents.length });
+        if (initialEvents.length > 0) {
+          controller.enqueue(encoder.encode(`event: debug\ndata: ${JSON.stringify({ message: 'Found initial events', count: initialEvents.length })}\n\n`));
+        }
+      } catch (err) {
+        logger.error('Failed to check initial events', err as Error);
+      }
 
       // Track connection health
       let lastSuccessfulWrite = Date.now();
@@ -163,6 +178,8 @@ export async function GET(
       let lastEventTimestamp = 0;
       let lastCleanupCheck = Date.now();
       
+      logger.info('Starting SSE polling', { lobbyId, playerId });
+      
       const pollInterval = setInterval(async () => {
         if (isConnectionClosed) {
           clearInterval(pollInterval);
@@ -171,25 +188,36 @@ export async function GET(
         
         try {
           // Fetch all events from Redis event queue
-          const events = await lrange(`lobby:${lobbyId}:events`, 0, -1) as any[];
+          const redisKey = `lobby:${lobbyId}:events`;
+          const events = await lrange(redisKey, 0, -1) as any[];
+          
+          // Only process events newer than our last timestamp
+          const newEvents = events.filter(event => event.timestamp > lastEventTimestamp);
+          
+          if (newEvents.length > 0) {
+            logger.debug('Processing new events', { 
+              lobbyId, 
+              newEventCount: newEvents.length,
+              totalEvents: events.length
+            });
+          }
           
           // Broadcast new events to this client
-          for (const event of events) {
-            // Skip events we've already sent
-            if (event.timestamp > lastEventTimestamp) {
-              try {
-                // Send SSE formatted event
-                controller.enqueue(
-                  encoder.encode(`event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`)
-                );
-                lastEventTimestamp = event.timestamp;
-              } catch (error) {
-                // Write failed = connection closed
-                isConnectionClosed = true;
-                clearInterval(heartbeatInterval);
-                clearInterval(pollInterval);
-                return;
-              }
+          for (const event of newEvents) {
+            try {
+              // Send SSE formatted event
+              const sseMessage = `event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`;
+              logger.debug('Sending SSE event', { type: event.type });
+              controller.enqueue(
+                encoder.encode(sseMessage)
+              );
+              lastEventTimestamp = event.timestamp;
+            } catch (error) {
+              // Write failed = connection closed
+              isConnectionClosed = true;
+              clearInterval(heartbeatInterval);
+              clearInterval(pollInterval);
+              return;
             }
           }
           
@@ -200,8 +228,8 @@ export async function GET(
             await checkDisconnectedPlayers(lobbyId);
           }
           
-          // Event queue cleanup - remove events older than 5s
-          const cutoffTime = Date.now() - 5000;
+          // Event queue cleanup - remove events older than 30s
+          const cutoffTime = Date.now() - 30000;
           const validEvents = events.filter(e => e.timestamp > cutoffTime);
           
           // Rewrite queue if we removed old events
@@ -219,6 +247,11 @@ export async function GET(
           isConnectionClosed = true;
           clearInterval(heartbeatInterval);
           clearInterval(pollInterval);
+          try {
+            controller.close();
+          } catch (e) {
+            // Controller already closed
+          }
           return;
         }
       }, 200); // 200ms polling for low latency
@@ -236,7 +269,11 @@ export async function GET(
         
         // Immediately mark player as disconnected
         await del(`player:${lobbyId}:${playerId}:heartbeat`);
-        controller.close();
+        try {
+          controller.close();
+        } catch (e) {
+          // Controller already closed
+        }
       });
     },
   });

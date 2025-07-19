@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SessionManager } from '@/app/lib/player-session';
 import { rateLimit } from '@/app/lib/rate-limit-middleware';
+import { logger } from '@/app/lib/logger';
 
 /**
  * Session management endpoint
@@ -37,7 +38,7 @@ export const GET = rateLimit('STANDARD')(async function handleGetSession(request
       lastActivity: session.lastActivity,
     });
   } catch (error) {
-    console.error('Error getting session:', error);
+    logger.error('Error getting session', error as Error);
     return NextResponse.json({ valid: false });
   }
 });
@@ -62,7 +63,7 @@ export const DELETE = rateLimit('STANDARD')(async function handleDeleteSession(r
     
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error clearing session:', error);
+    logger.error('Error clearing session', error as Error);
     return NextResponse.json({ error: 'Failed to clear session' }, { status: 500 });
   }
 });

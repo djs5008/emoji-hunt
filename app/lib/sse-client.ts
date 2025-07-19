@@ -1,3 +1,5 @@
+import { logger } from './logger/client';
+
 /**
  * SSE Event Handler Interface
  * 
@@ -103,18 +105,20 @@ export class SSEClient {
 
     // Session cookie will identify the player
     const url = `/api/lobby/${this.lobbyId}/sse`;
+    logger.info('SSE Client: Establishing connection', { url });
     this.eventSource = new EventSource(url);
     
     // Set up proactive reconnection before 5-minute timeout (reconnect at 4.5 minutes)
     // This prevents the server from closing the connection due to inactivity
     this.connectionTimer = setTimeout(() => {
-      console.log('[SSE] Proactive reconnection to prevent timeout...');
+      logger.info('SSE: Proactive reconnection to prevent timeout');
       this.isIntentionalReconnect = true;
       this.eventSource?.close();
       this.establishConnection();
     }, 4.5 * 60 * 1000); // 4.5 minutes
 
     this.eventSource.addEventListener('connected', (event) => {
+      logger.info('SSE Client: Connected to SSE', { data: event.data });
       this.reconnectAttempts = 0;
       const data = JSON.parse(event.data);
       this.handlers.onConnected?.(data);
@@ -131,6 +135,7 @@ export class SSEClient {
     });
 
     this.eventSource.addEventListener('game-started', (event) => {
+      logger.info('SSE Client: Received game-started event', { data: event.data });
       const data = JSON.parse(event.data);
       this.handlers.onGameStarted?.(data);
     });

@@ -3,6 +3,7 @@ import { setLobby } from './upstash-storage';
 import { getUpstashRedis } from './upstash-redis';
 import { broadcastToLobby, SSE_EVENTS } from './sse-broadcast';
 import { Lobby } from '@/app/types/game';
+import { logger } from './logger';
 
 /**
  * Game state transition management
@@ -67,8 +68,35 @@ async function releaseStateLock(lobbyId: string, transition: string): Promise<vo
 export async function startGame(lobbyId: string, playerId: string): Promise<boolean> {
   const lobby = await getLobby(lobbyId);
   
+  // Debug logging
+  logger.debug('Attempting to start game', {
+    lobbyId,
+    playerId,
+    lobbyExists: !!lobby,
+    gameState: lobby?.gameState,
+    hostId: lobby?.hostId,
+    isHost: lobby?.hostId === playerId,
+    players: lobby?.players?.map(p => ({ id: p.id, nickname: p.nickname }))
+  });
+  
   // Validate: lobby exists, is waiting, and player is host
-  if (!lobby || lobby.gameState !== 'waiting' || lobby.hostId !== playerId) {
+  if (!lobby) {
+    logger.warn('Cannot start game: Lobby not found', { lobbyId });
+    return false;
+  }
+  
+  if (lobby.gameState !== 'waiting') {
+    logger.warn('Cannot start game: Invalid game state', { lobbyId, currentState: lobby.gameState });
+    return false;
+  }
+  
+  if (lobby.hostId !== playerId) {
+    logger.warn('Cannot start game: Player is not host', { 
+      lobbyId, 
+      playerId, 
+      hostId: lobby.hostId,
+      playerInLobby: lobby.players.some(p => p.id === playerId)
+    });
     return false;
   }
 

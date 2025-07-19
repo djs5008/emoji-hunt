@@ -4,6 +4,7 @@ import { nanoid } from 'nanoid';
 import { setex } from '@/app/lib/upstash-redis';
 import { SessionManager } from '@/app/lib/player-session';
 import { withRateLimitedRoute } from '@/app/lib/rate-limit-middleware';
+import { logger } from '@/app/lib/logger';
 
 /**
  * Creates a new game lobby
@@ -50,7 +51,16 @@ async function handleCreateLobby(request: NextRequest) {
     const { session, isNew, token } = await SessionManager.getOrCreateSession();
     const playerId = session.playerId;
     
+    logger.debug('Creating lobby', { playerId, nickname: nickname.trim() });
+    
     const lobby = await createLobby(playerId, nickname.trim());
+    
+    logger.info('Lobby created', { 
+      lobbyId: lobby.id, 
+      playerId, 
+      hostId: lobby.hostId,
+      isHost: lobby.hostId === playerId 
+    });
     
     // Set initial heartbeat for connection monitoring
     await setex(`player:${lobby.id}:${playerId}:heartbeat`, 10, Date.now().toString());
@@ -74,7 +84,7 @@ async function handleCreateLobby(request: NextRequest) {
     
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Error creating lobby:', error);
+    logger.error('Error creating lobby', error as Error);
     return NextResponse.json({ error: 'Failed to create lobby' }, { status: 500 });
   }
 }

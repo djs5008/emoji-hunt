@@ -22,6 +22,7 @@ import Scoreboard from '@/app/components/Scoreboard';
 import EmojiBackground from '@/app/components/EmojiBackground';
 import { Lobby } from '@/app/types/game';
 import { SSEClient } from '@/app/lib/sse-client';
+import { logger } from '@/app/lib/logger/client';
 // Session management is now handled server-side
 
 /**
@@ -61,11 +62,13 @@ export default function LobbyPage() {
   const [scoreAnimation, setScoreAnimation] = useState<{ points: number; id: number } | null>(null);
   const [displayScore, setDisplayScore] = useState<number | null>(null);
   const [showScrollHint, setShowScrollHint] = useState(false);
+  const [hasRejoined, setHasRejoined] = useState(false);
   
   const sseClientRef = useRef<SSEClient | null>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const roundTimerRef = useRef<NodeJS.Timeout | null>(null);
   const stateTransitionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const startCountdownTimerRef = useRef<((startTime: number) => void) | null>(null);
 
   // Check if player is host
   useEffect(() => {
@@ -73,9 +76,6 @@ export default function LobbyPage() {
     if (hostToken) {
       setIsHost(true);
     }
-    
-    // Player ID will be determined by server session
-    setPlayerId('pending'); // Placeholder until we get it from server
   }, [lobbyId]);
 
   // Keep playerIdRef in sync
@@ -85,7 +85,9 @@ export default function LobbyPage() {
 
   // Initial lobby fetch and rejoin
   useEffect(() => {
-    if (!playerId) return;
+    if (!lobbyId) return;
+
+    logger.info('Starting rejoin process', { lobbyId });
 
     // First check if lobby exists
     fetch(`/api/lobby/${lobbyId}`, {
@@ -93,6 +95,8 @@ export default function LobbyPage() {
     })
       .then((res) => res.json())
       .then((lobbyData) => {
+        logger.debug('Lobby fetch response', { lobbyData, hasError: !!lobbyData?.error });
+        
         if (!lobbyData || lobbyData.error) {
           // Lobby doesn't exist - show error
           setError('This lobby doesn\'t exist');
@@ -108,28 +112,32 @@ export default function LobbyPage() {
         })
           .then((res) => res.json())
           .then((rejoinData) => {
+            logger.debug('Rejoin response', { rejoinData, hasError: !!rejoinData?.error });
+            
             if (rejoinData.error) {
               // Player not in lobby but lobby exists - redirect to join
+              logger.warn('Player not in lobby, redirecting', { lobbyId });
               router.push(`/?join=${lobbyId}`);
               return null;
             }
-            // Player is in lobby - return the lobby data
-            return rejoinData.lobby || lobbyData;
+            // Player is in lobby - mark as rejoined
+            setHasRejoined(true);
+            // Set the player ID from rejoin response
+            if (rejoinData.playerId) {
+              setPlayerId(rejoinData.playerId);
+            }
+            return rejoinData;
           });
       })
-      .then((lobbyData) => {
-        if (lobbyData === null) return; // Already redirected or errored
+      .then((rejoinData) => {
+        if (rejoinData === null) return; // Already redirected or errored
         
+        const lobbyData = rejoinData.lobby;
         setLobby(lobbyData);
         
-        // Check if player is in the lobby and get their ID
-        const currentPlayer = lobbyData.players.find((p: any) => p.isCurrent);
-        if (currentPlayer) {
-          setPlayerId(currentPlayer.id);
-          // Check if player is actually the host based on lobby data
-          if (lobbyData.hostId === currentPlayer.id) {
-            setIsHost(true);
-          }
+        // Check if player is actually the host based on lobby data
+        if (lobbyData.hostId === rejoinData.playerId) {
+          setIsHost(true);
         }
 
         // If game is in progress, restore the countdown/round state
@@ -166,13 +174,13 @@ export default function LobbyPage() {
         // On any error, show error message
         setError('Failed to load lobby');
       });
-  }, [lobbyId, playerId, router]);
+  }, [lobbyId, router]);
 
-  // Connect to SSE
+  // Connect to SSE only after successful rejoin
   useEffect(() => {
-    if (!lobbyId || error) return;
-    // Don't wait for playerId since it's handled by session
+    if (!lobbyId || error || !hasRejoined) return;
 
+    logger.info('Lobby: Setting up SSE connection', { lobbyId });
     const sseClient = new SSEClient(lobbyId, 'session'); // Use 'session' as placeholder
     sseClientRef.current = sseClient;
 
@@ -204,21 +212,30 @@ export default function LobbyPage() {
       },
       
       onGameStarted: (data) => {
-        setStartingGame(false);
+        logger.info('Lobby: Game started event received', data);
         setShowRoundScore(false);
         setShowCorrectAnswer(false);
-        setLobby((prev) =>
-          prev
+        setCountdown(3); // Set initial countdown
+        setLobby((prev) => {
+          const newState = prev
             ? {
                 ...prev,
-                gameState: 'countdown',
+                gameState: 'countdown' as const,
                 currentRound: data.currentRound || 1,
                 rounds: data.currentRound > 1 ? prev.rounds : [],
                 countdownStartTime: data.countdownStartTime,
               }
-            : null
-        );
-        startCountdownTimer(data.countdownStartTime);
+            : null;
+          logger.debug('Lobby: Updated game state to countdown', { prevState: prev?.gameState, newState: newState?.gameState });
+          return newState;
+        });
+        // Use the ref to call the latest version of the function
+        if (startCountdownTimerRef.current) {
+          logger.debug('Lobby: Starting countdown timer');
+          startCountdownTimerRef.current(data.countdownStartTime);
+        } else {
+          logger.warn('Lobby: startCountdownTimerRef.current is null');
+        }
       },
       
       onRoundPreloaded: (data) => {
@@ -480,43 +497,32 @@ export default function LobbyPage() {
         clearTimeout(stateTransitionTimeoutRef.current);
       }
     };
-  }, [lobbyId, router]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lobbyId, router, hasRejoined]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Track if component is truly unmounting
-  const isUnmountingRef = useRef(false);
-  
-  // Send leave only on true unmount (navigation, refresh, close)
+  // Handle cleanup on page unload with grace period for reconnection
   useEffect(() => {
-    // Set unmounting flag when component unmounts
-    return () => {
-      isUnmountingRef.current = true;
-    };
-  }, []); // Empty deps - only runs once
-  
-  useEffect(() => {
-    return () => {
-      // Only send leave if truly unmounting and player is in lobby
-      if (!isUnmountingRef.current) {
-        return;
-      }
-      
-      if (!lobby || !lobby.players.find(p => p.id === playerId)) {
-        return;
-      }
-      
-      
-      // Disconnect SSE
-      if (sseClientRef.current) {
-        sseClientRef.current.disconnect();
-        sseClientRef.current = null;
-      }
-      
-      // Send leave request (session will identify the player)
+    if (!playerId || !lobbyId) return;
+    
+    const handleBeforeUnload = () => {
+      // Send leave request when closing tab/window
+      // The server will mark player as disconnecting but give them time to reconnect
       if (navigator.sendBeacon) {
-        const sent = navigator.sendBeacon(`/api/lobby/${lobbyId}/leave`, '{}');
+        // Create a Blob with proper content type for sendBeacon
+        const data = JSON.stringify({ 
+          explicit: false,  // Not an explicit leave, might be refresh
+          gracePeriod: true // Give time to reconnect
+        });
+        const blob = new Blob([data], { type: 'application/json' });
+        navigator.sendBeacon(`/api/lobby/${lobbyId}/leave`, blob);
       }
     };
-  }, [playerId, lobbyId, lobby]);
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [playerId, lobbyId]);
 
   // Check and start round
   const checkAndStartRound = useCallback(async () => {
@@ -529,7 +535,7 @@ export default function LobbyPage() {
       const currentLobby = await lobbyRes.json();
       
       if (!currentLobby || currentLobby.error) {
-        console.error('[Game] Failed to get lobby state');
+        logger.error('Failed to get lobby state');
         return;
       }
       
@@ -546,7 +552,7 @@ export default function LobbyPage() {
       
       const data = await res.json();
     } catch (err) {
-      console.error('[Game] Failed to check round start:', err);
+      logger.error('Failed to check round start', err);
     }
   }, [lobbyId]);
 
@@ -560,7 +566,7 @@ export default function LobbyPage() {
       const currentLobby = await lobbyRes.json();
       
       if (!currentLobby || currentLobby.error) {
-        console.error('[Game] Failed to get lobby state for preload');
+        logger.error('Failed to get lobby state for preload');
         return;
       }
       
@@ -576,12 +582,13 @@ export default function LobbyPage() {
       
       const data = await res.json();
     } catch (err) {
-      console.error('[Game] Failed to preload round:', err);
+      logger.error('Failed to preload round', err);
     }
   }, [lobbyId]);
 
   // Start countdown timer
   const startCountdownTimer = useCallback((startTime: number) => {
+    logger.info('startCountdownTimer called', { startTime });
     if (countdownIntervalRef.current) {
       clearInterval(countdownIntervalRef.current);
     }
@@ -614,6 +621,11 @@ export default function LobbyPage() {
     updateCountdown();
     countdownIntervalRef.current = setInterval(updateCountdown, 100);
   }, [checkAndStartRound, preloadRoundData]);
+
+  // Keep ref updated
+  useEffect(() => {
+    startCountdownTimerRef.current = startCountdownTimer;
+  }, [startCountdownTimer]);
 
   // Start round timer
   const startRoundTimer = useCallback((startTime: number, currentRoundNum: number) => {
@@ -708,7 +720,7 @@ export default function LobbyPage() {
         } catch {
           setError(`Failed to start game: ${res.status} ${res.statusText}`);
         }
-        setStartingGame(false);
+        // setStartingGame(false); // Remove this - state doesn't exist
       }
     } catch (err) {
       console.error('Error starting game:', err);
@@ -717,9 +729,9 @@ export default function LobbyPage() {
       } else {
         setError('Failed to start game. Please try again.');
       }
-      setStartingGame(false);
+      // setStartingGame(false); // Remove this - state doesn't exist
     }
-  }, [lobbyId, playerId, lobby, startingGame]);
+  }, [lobbyId, playerId, lobby]);
 
   const handleEmojiClick = useCallback(
     async (
@@ -791,6 +803,8 @@ export default function LobbyPage() {
   }, [lobbyId, playerId, lobby]);
 
   const handleMainMenu = useCallback(async () => {
+    // Reset rejoin state when explicitly leaving
+    setHasRejoined(false);
     // Navigate to main menu - the cleanup effect will handle leave
     router.push('/');
   }, [router]);

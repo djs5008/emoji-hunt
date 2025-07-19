@@ -1,6 +1,7 @@
 import { randomBytes } from 'crypto';
 import { cookies } from 'next/headers';
 import { getUpstashRedis } from './upstash-redis';
+import { logger } from './logger';
 
 const SESSION_PREFIX = 'session:';
 const SESSION_TTL = 24 * 60 * 60; // 24 hours in seconds
@@ -80,7 +81,7 @@ export class SessionManager {
       }
       return data as PlayerSession;
     } catch (error) {
-      console.error('Failed to parse session data:', error);
+      logger.error('Failed to parse session data', error as Error, { token });
       return null;
     }
   }
@@ -115,7 +116,14 @@ export class SessionManager {
    */
   static async getSessionFromCookies(): Promise<{ token: string; session: PlayerSession } | null> {
     const cookieStore = await cookies();
-    const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+    const cookie = cookieStore.get(SESSION_COOKIE_NAME);
+    const token = cookie?.value;
+
+    logger.debug('Getting session from cookies', { 
+      cookieName: SESSION_COOKIE_NAME,
+      cookieFound: !!cookie,
+      tokenLength: token?.length 
+    });
 
     if (!token) {
       return null;
@@ -123,6 +131,7 @@ export class SessionManager {
 
     const session = await this.validateSession(token);
     if (!session) {
+      logger.debug('Session validation failed', { token: token.substring(0, 10) + '...' });
       return null;
     }
 
@@ -135,13 +144,21 @@ export class SessionManager {
   static async setSessionCookie(token: string): Promise<void> {
     const cookieStore = await cookies();
     
-    cookieStore.set(SESSION_COOKIE_NAME, token, {
+    const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: 'lax' as const,
       maxAge: SESSION_TTL,
       path: '/',
+    };
+    
+    logger.debug('Setting session cookie', { 
+      cookieName: SESSION_COOKIE_NAME, 
+      tokenLength: token.length,
+      options: cookieOptions 
     });
+    
+    cookieStore.set(SESSION_COOKIE_NAME, token, cookieOptions);
   }
 
   /**

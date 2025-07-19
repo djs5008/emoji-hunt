@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getLobby } from '@/app/lib/game-state-async';
 import { SessionManager } from '@/app/lib/player-session';
+import { logger } from '@/app/lib/logger';
+import { setex } from '@/app/lib/upstash-redis';
 
 /**
  * Allows a player to rejoin an existing lobby
@@ -51,8 +53,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Lobby ID is required' }, { status: 400 });
     }
     
+    const upperLobbyId = lobbyId.toUpperCase();
+    logger.debug('Attempting to rejoin lobby', { lobbyId, upperLobbyId, playerId });
+    
     // Fetch lobby data (case-insensitive)
-    const lobby = await getLobby(lobbyId.toUpperCase());
+    const lobby = await getLobby(upperLobbyId);
     
     if (!lobby) {
       return NextResponse.json({ error: 'Lobby not found' }, { status: 404 });
@@ -61,8 +66,15 @@ export async function POST(request: NextRequest) {
     // Verify player was previously in this lobby
     const player = lobby.players.find(p => p.id === playerId);
     if (!player) {
+      logger.debug('Player not found in lobby', { playerId, lobbyId, playerIds: lobby.players.map(p => p.id) });
       return NextResponse.json({ error: 'Player not found in lobby' }, { status: 404 });
     }
+    
+    // Restore player's heartbeat and joinTime on successful rejoin
+    const now = Date.now().toString();
+    await setex(`player:${lobbyId}:${playerId}:heartbeat`, 10, now);
+    await setex(`player:${lobbyId}:${playerId}:joinTime`, 3600, now); // 1 hour TTL
+    logger.info('Player rejoined lobby', { playerId, lobbyId });
     
     // Return full state for seamless reconnection
     return NextResponse.json({
@@ -71,7 +83,7 @@ export async function POST(request: NextRequest) {
       player,
     });
   } catch (error) {
-    console.error('Error rejoining lobby:', error);
+    logger.error('Error rejoining lobby', error as Error);
     return NextResponse.json({ error: 'Failed to rejoin lobby' }, { status: 500 });
   }
 }

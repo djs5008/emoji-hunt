@@ -159,7 +159,7 @@ describe('Player Heartbeat', () => {
     it('should use 5 second threshold for heartbeat timeout', async () => {
       (get as jest.Mock).mockImplementation((key: string) => {
         if (key.includes('player2:heartbeat')) {
-          return Promise.resolve((currentTime - 5001).toString()); // Just over 5 seconds
+          return Promise.resolve((currentTime - 3001).toString()); // Just over 3 seconds
         }
         return Promise.resolve((currentTime - 1000).toString());
       });
@@ -174,10 +174,10 @@ describe('Player Heartbeat', () => {
       );
     });
 
-    it('should not remove players at exactly 5 second threshold', async () => {
+    it('should not remove players at exactly 3 second threshold', async () => {
       (get as jest.Mock).mockImplementation((key: string) => {
         if (key.includes('player2:heartbeat')) {
-          return Promise.resolve((currentTime - 5000).toString()); // Exactly 5 seconds
+          return Promise.resolve((currentTime - 3000).toString()); // Exactly 3 seconds
         }
         return Promise.resolve((currentTime - 1000).toString());
       });

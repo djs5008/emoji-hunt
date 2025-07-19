@@ -2,10 +2,12 @@ import { POST } from '@/app/api/lobby/rejoin/route';
 import { NextRequest } from 'next/server';
 import { getLobby } from '@/app/lib/game-state-async';
 import { SessionManager } from '@/app/lib/player-session';
+import { setex } from '@/app/lib/upstash-redis';
 
 // Mock dependencies
 jest.mock('@/app/lib/game-state-async');
 jest.mock('@/app/lib/player-session');
+jest.mock('@/app/lib/upstash-redis');
 
 describe('Lobby Rejoin Route', () => {
   let mockLobby: any;
@@ -44,6 +46,7 @@ describe('Lobby Rejoin Route', () => {
     // Default mocks
     (SessionManager.getSessionFromCookies as jest.Mock).mockResolvedValue(mockSession);
     (getLobby as jest.Mock).mockResolvedValue(mockLobby);
+    (setex as jest.Mock).mockResolvedValue(undefined);
   });
 
   describe('Successful Rejoin', () => {

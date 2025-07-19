@@ -3,6 +3,7 @@ import { del } from '@/app/lib/upstash-redis';
 import { checkDisconnectedPlayers } from '@/app/lib/player-heartbeat';
 import { SessionManager } from '@/app/lib/player-session';
 import { rateLimit } from '@/app/lib/rate-limit-middleware';
+import { logger } from '@/app/lib/logger';
 
 /**
  * Removes a player from a lobby
@@ -49,11 +50,13 @@ export const POST = rateLimit('STANDARD')(async function handleLeaveLobby(
     // Parse optional request body
     const contentType = request.headers.get('content-type');
     let isExplicitLeave = false;
+    let useGracePeriod = false;
     
     if (contentType?.includes('application/json')) {
       try {
         const data = await request.json();
         isExplicitLeave = data.explicit === true;
+        useGracePeriod = data.gracePeriod === true;
       } catch {
         // Body is optional, ignore parse errors
       }
@@ -61,18 +64,36 @@ export const POST = rateLimit('STANDARD')(async function handleLeaveLobby(
     
     const lobbyId = params.id;
     
-    // Remove player's session data immediately
-    await del([
-      `player:${lobbyId}:${playerId}:heartbeat`,
-      `player:${lobbyId}:${playerId}:joinTime`
-    ]);
+    logger.info('Player leaving lobby', {
+      lobbyId,
+      playerId,
+      isExplicitLeave,
+      useGracePeriod,
+      userAgent: request.headers.get('user-agent'),
+    });
     
-    // Trigger cleanup to remove player from lobby and notify others
-    await checkDisconnectedPlayers(lobbyId, playerId);
+    if (useGracePeriod) {
+      // For potential refresh: Mark player as disconnecting but don't remove yet
+      // They have time to reconnect before being removed by heartbeat system
+      await del(`player:${lobbyId}:${playerId}:heartbeat`);
+      // Keep joinTime so they can rejoin
+      
+      // Don't check disconnected players - let the periodic heartbeat system handle it
+      // This gives the player time to rejoin before being removed
+    } else {
+      // Explicit leave or no grace period: Remove immediately
+      await del([
+        `player:${lobbyId}:${playerId}:heartbeat`,
+        `player:${lobbyId}:${playerId}:joinTime`
+      ]);
+      
+      // Force remove the player
+      await checkDisconnectedPlayers(lobbyId, playerId);
+    }
     
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[LEAVE] Error:', error);
+    logger.error('Error processing leave request', error as Error);
     return NextResponse.json({ error: 'Failed to leave' }, { status: 500 });
   }
 });

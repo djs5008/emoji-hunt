@@ -2,6 +2,7 @@ import { getLobby } from './game-state-async';
 import { setLobby } from './upstash-storage';
 import { get, del, keys } from './upstash-redis';
 import { broadcastToLobby, SSE_EVENTS } from './sse-broadcast';
+import { logger } from './logger';
 
 /**
  * Player Heartbeat Management
@@ -12,7 +13,7 @@ import { broadcastToLobby, SSE_EVENTS } from './sse-broadcast';
  * 
  * Heartbeat system:
  * - Players send heartbeats every 2 seconds via SSE
- * - Players considered disconnected after 5 seconds
+ * - Players considered disconnected after 3 seconds
  * - Grace period for new players to establish connection
  * - Automatic host reassignment if host disconnects
  */
@@ -35,7 +36,10 @@ import { broadcastToLobby, SSE_EVENTS } from './sse-broadcast';
 export async function checkDisconnectedPlayers(lobbyId: string, forceRemove?: string): Promise<void> {
   const lobby = await getLobby(lobbyId);
   
-  if (!lobby) return;
+  if (!lobby) {
+    logger.debug('checkDisconnectedPlayers: Lobby not found', { lobbyId });
+    return;
+  }
   
   const now = Date.now();
   const disconnectedPlayers: string[] = [];
@@ -76,8 +80,9 @@ export async function checkDisconnectedPlayers(lobbyId: string, forceRemove?: st
     // Check heartbeat freshness
     const timeSinceHeartbeat = now - parseInt(lastHeartbeat);
     
-    // Disconnect threshold: 5 seconds (allows 2.5 missed heartbeats)
-    if (timeSinceHeartbeat > 5000) {
+    // Disconnect threshold: 3 seconds (allows 1.5 missed heartbeats)
+    // This provides faster disconnection detection while still allowing for network hiccups
+    if (timeSinceHeartbeat > 3000) {
       disconnectedPlayers.push(player.id);
       await del(heartbeatKey);
     }
@@ -85,6 +90,13 @@ export async function checkDisconnectedPlayers(lobbyId: string, forceRemove?: st
   
   // Process disconnections if any found
   if (disconnectedPlayers.length > 0) {
+    logger.debug('Processing player disconnections', {
+      lobbyId,
+      disconnectedPlayers,
+      forceRemove,
+      remainingPlayers: lobby.players.length - disconnectedPlayers.length
+    });
+    
     // Remove from lobby
     lobby.players = lobby.players.filter(p => !disconnectedPlayers.includes(p.id));
     
@@ -114,6 +126,8 @@ export async function checkDisconnectedPlayers(lobbyId: string, forceRemove?: st
     
     // Empty lobby cleanup
     if (lobby.players.length === 0) {
+      logger.info('Deleting empty lobby', { lobbyId });
+      
       // Delete main lobby data
       await del([`lobby:${lobbyId}`, `events:${lobbyId}`]);
       

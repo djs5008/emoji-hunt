@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { preloadRound } from '@/app/lib/game-state-transitions';
+import { logger } from '@/app/lib/logger';
 
 /**
  * Preloads data for the next round
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({ success });
   } catch (error) {
-    console.error('[PRELOAD ROUND] Error:', error);
+    logger.error('Failed to preload round', error as Error);
     return NextResponse.json({ error: 'Failed to preload round' }, { status: 500 });
   }
 }

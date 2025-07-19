@@ -181,7 +181,11 @@ describe('/api/game/preload-round POST endpoint', () => {
 
       expect(response.status).toBe(500);
       expect(responseData).toEqual({ error: 'Failed to preload round' });
-      expect(consoleSpy).toHaveBeenCalledWith('[PRELOAD ROUND] Error:', expect.any(Error));
+      expect(consoleSpy).toHaveBeenCalledWith('[ERROR] Failed to preload round', expect.objectContaining({
+        error: expect.objectContaining({
+          message: 'Preload failed'
+        })
+      }));
       
       consoleSpy.mockRestore();
     });

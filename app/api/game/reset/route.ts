@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { resetGame } from '@/app/lib/game-state-transitions';
 import { SessionManager } from '@/app/lib/player-session';
 import { rateLimit } from '@/app/lib/rate-limit-middleware';
+import { logger } from '@/app/lib/logger';
 
 /**
  * Resets a game session to its initial state
@@ -58,7 +59,7 @@ export const POST = rateLimit('STANDARD')(async function handleResetGame(request
     
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[RESET GAME] Error:', error);
+    logger.error('Failed to reset game', error as Error);
     return NextResponse.json({ error: 'Failed to reset game' }, { status: 500 });
   }
 });

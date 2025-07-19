@@ -73,7 +73,7 @@ describe('sse-broadcast', () => {
 
       await broadcastToLobby(lobbyId, eventType, data);
 
-      expect(mockExpire).toHaveBeenCalledWith('lobby:TEST123:events', 5);
+      expect(mockExpire).toHaveBeenCalledWith('lobby:TEST123:events', 30);
     });
 
     it('should handle different lobby IDs correctly', async () => {
@@ -94,7 +94,7 @@ describe('sse-broadcast', () => {
           `lobby:${lobbyId}:events`,
           expect.objectContaining({ type: 'lobby-updated' })
         );
-        expect(mockExpire).toHaveBeenCalledWith(`lobby:${lobbyId}:events`, 5);
+        expect(mockExpire).toHaveBeenCalledWith(`lobby:${lobbyId}:events`, 30);
       }
     });
 
@@ -251,9 +251,9 @@ describe('sse-broadcast', () => {
       expect(mockRpush).toHaveBeenCalledWith('lobby:LOBBY2:events', expect.any(Object));
       expect(mockRpush).toHaveBeenCalledWith('lobby:LOBBY3:events', expect.any(Object));
       
-      expect(mockExpire).toHaveBeenCalledWith('lobby:LOBBY1:events', 5);
-      expect(mockExpire).toHaveBeenCalledWith('lobby:LOBBY2:events', 5);
-      expect(mockExpire).toHaveBeenCalledWith('lobby:LOBBY3:events', 5);
+      expect(mockExpire).toHaveBeenCalledWith('lobby:LOBBY1:events', 30);
+      expect(mockExpire).toHaveBeenCalledWith('lobby:LOBBY2:events', 30);
+      expect(mockExpire).toHaveBeenCalledWith('lobby:LOBBY3:events', 30);
     });
 
     it('should handle large data payloads', async () => {

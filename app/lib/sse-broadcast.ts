@@ -1,4 +1,5 @@
 import { rpush, expire } from './upstash-redis';
+import { logger } from './logger';
 
 /**
  * Server-Sent Events (SSE) Broadcasting System
@@ -55,10 +56,20 @@ export async function broadcastToLobby(
     timestamp: Date.now(),
   };
   
-  // Push to Redis event queue
-  await rpush(`lobby:${lobbyId}:events`, event);
+  const redisKey = `lobby:${lobbyId}:events`;
   
-  // Auto-expire after 5 seconds (events should be consumed quickly)
-  await expire(`lobby:${lobbyId}:events`, 5);
+  logger.debug('Broadcasting event to lobby', {
+    lobbyId,
+    eventType,
+    dataPreview: data !== undefined ? JSON.stringify(data).substring(0, 100) : 'undefined',
+    redisKey,
+    event
+  });
+  
+  // Push to Redis event queue
+  await rpush(redisKey, event);
+  
+  // Auto-expire after 30 seconds to ensure events aren't missed in development
+  await expire(`lobby:${lobbyId}:events`, 30);
 }
 

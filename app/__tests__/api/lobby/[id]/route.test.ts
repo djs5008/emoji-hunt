@@ -194,7 +194,11 @@ describe('/api/lobby/[id] GET endpoint', () => {
 
       expect(response.status).toBe(500);
       expect(responseData).toHaveProperty('error', 'Failed to fetch lobby');
-      expect(consoleSpy).toHaveBeenCalledWith('Error fetching lobby:', expect.any(Error));
+      expect(consoleSpy).toHaveBeenCalledWith('[ERROR] Error fetching lobby', expect.objectContaining({
+        error: expect.objectContaining({
+          message: expect.any(String)
+        })
+      }));
 
       consoleSpy.mockRestore();
     });
@@ -210,7 +214,11 @@ describe('/api/lobby/[id] GET endpoint', () => {
 
       expect(response.status).toBe(500);
       expect(responseData).toHaveProperty('error', 'Failed to fetch lobby');
-      expect(consoleSpy).toHaveBeenCalledWith('Error fetching lobby:', expect.any(Error));
+      expect(consoleSpy).toHaveBeenCalledWith('[ERROR] Error fetching lobby', expect.objectContaining({
+        error: expect.objectContaining({
+          message: expect.any(String)
+        })
+      }));
 
       consoleSpy.mockRestore();
     });

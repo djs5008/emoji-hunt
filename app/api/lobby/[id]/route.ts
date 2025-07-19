@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getLobby } from '@/app/lib/game-state-async';
 import { SessionManager } from '@/app/lib/player-session';
+import { logger } from '@/app/lib/logger';
 
 /**
  * Retrieves lobby information by ID
@@ -65,7 +66,7 @@ export async function GET(
     // are handled separately via SSE for security
     return NextResponse.json(lobbyWithCurrentPlayer);
   } catch (error) {
-    console.error('Error fetching lobby:', error);
+    logger.error('Error fetching lobby', error as Error);
     return NextResponse.json({ error: 'Failed to fetch lobby' }, { status: 500 });
   }
 }

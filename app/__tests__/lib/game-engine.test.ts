@@ -375,6 +375,8 @@ describe('Game Engine', () => {
 
   describe('Point Calculation', () => {
     it('should award maximum points for instant find by first player', async () => {
+      // Set a start time slightly in the past to ensure consistent timing
+      const startTime = Date.now() - 10;
       const mockLobby = createMockLobby({
         rounds: [
           {
@@ -383,8 +385,8 @@ describe('Game Engine', () => {
             emojiPositions: [
               { id: 'emoji1', emoji: '🎯', x: 100, y: 100, scale: 1 },
             ],
-            startTime: Date.now(), // Just started
-            endTime: Date.now() + 30000,
+            startTime: startTime, // Started 10ms ago
+            endTime: startTime + 30000,
             foundBy: [],
           },
         ],
@@ -395,7 +397,9 @@ describe('Game Engine', () => {
       const result = await handleEmojiClick('test-lobby', 'player1', 'emoji1');
 
       expect(result.found).toBe(true);
-      expect(result.points).toBe(250); // 100 base + 100 time + 50 order
+      // With 10ms elapsed, points should be very close to 250 (might be 249 due to rounding)
+      expect(result.points).toBeGreaterThanOrEqual(249);
+      expect(result.points).toBeLessThanOrEqual(250);
     });
 
     it('should award less points for slower finds', async () => {

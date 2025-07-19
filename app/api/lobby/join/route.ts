@@ -4,6 +4,8 @@ import { broadcastToLobby, SSE_EVENTS } from '@/app/lib/sse-broadcast';
 import { setex } from '@/app/lib/upstash-redis';
 import { SessionManager } from '@/app/lib/player-session';
 import { withRateLimitedRoute } from '@/app/lib/rate-limit-middleware';
+import { logger } from '@/app/lib/logger';
+
 
 /**
  * Joins an existing game lobby
@@ -94,7 +96,7 @@ async function handleJoinLobby(request: NextRequest) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Error joining lobby:', error);
+    logger.error('Error joining lobby', error as Error);
     return NextResponse.json(
       { error: 'Failed to join lobby' },
       { status: 500 }

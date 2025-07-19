@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SessionManager } from './player-session';
 import { withRateLimit, addRateLimitHeaders, RateLimitConfig, RATE_LIMITS } from './rate-limiter';
+import { logger } from './logger';
 
 /**
  * Rate Limit Middleware for Next.js App Router
@@ -31,6 +32,10 @@ export function withRateLimitedRoute(
     request: NextRequest,
     context?: any
   ): Promise<NextResponse> {
+    // Extract endpoint from URL (outside try block so it's available in catch)
+    const endpoint = new URL(request.url).pathname;
+    let sessionId: string | null = null;
+    
     try {
       // Check if rate limiting should be skipped
       if (options.skip && await options.skip(request)) {
@@ -38,8 +43,6 @@ export function withRateLimitedRoute(
       }
       
       // Get session ID
-      let sessionId: string | null = null;
-      
       if (options.getSessionId) {
         sessionId = await options.getSessionId(request);
       } else {
@@ -55,9 +58,6 @@ export function withRateLimitedRoute(
           { status: 401 }
         );
       }
-      
-      // Extract endpoint from URL
-      const endpoint = new URL(request.url).pathname;
       
       // Check rate limit
       const rateLimitResult = await withRateLimit(sessionId, endpoint, options.config);
@@ -78,7 +78,7 @@ export function withRateLimitedRoute(
       
       return response;
     } catch (error) {
-      console.error('Rate limit middleware error:', error);
+      logger.error('Rate limit middleware error', error as Error, { endpoint, sessionId });
       // In case of rate limiter failure, allow the request through
       // This ensures the game remains playable even if rate limiting fails
       return handler(request, context);

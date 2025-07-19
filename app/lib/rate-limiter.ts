@@ -1,4 +1,5 @@
 import { getUpstashRedis } from './upstash-redis';
+import { logger } from './logger';
 
 /**
  * Rate Limiter Module
@@ -136,7 +137,7 @@ export class RateLimiter {
         remaining: Math.max(0, this.config.maxRequests - (allowed ? currentCount + 1 : currentCount)),
       };
     } catch (error) {
-      console.error('Rate limiter error:', error);
+      logger.error('Rate limiter error', error as Error, { sessionId, endpoint, key });
       // On error, allow the request through to avoid blocking users
       return {
         allowed: true,

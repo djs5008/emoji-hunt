@@ -7,9 +7,9 @@
  * @type {import('next').NextConfig}
  */
 const nextConfig = {
-  // Enable React's strict mode for better development warnings
-  // Helps catch unsafe lifecycles, legacy API usage, and other issues
-  reactStrictMode: true,
+  // Disable React's strict mode to prevent double-mounting in development
+  // This was causing issues with cleanup effects running unexpectedly
+  reactStrictMode: false,
   
   experimental: {
     serverActions: {

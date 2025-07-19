@@ -1,5 +1,6 @@
 import { Lobby } from '@/app/types/game';
 import { getUpstashRedis } from './upstash-redis';
+import { logger } from './logger';
 
 /**
  * Upstash Storage Layer
@@ -33,10 +34,10 @@ export async function getLobby(id: string): Promise<Lobby | null> {
     // Upstash handles JSON parsing automatically
     return data as Lobby | null;
   } catch (error) {
-    console.error('Error getting lobby from Redis:', error);
+    logger.error('Error getting lobby from Redis', error as Error, { lobbyId: id });
     // Check if it's a connection/credentials error
     if (error instanceof Error && error.message.includes('credentials')) {
-      console.error('Redis connection error - check UPSTASH_REDIS_REST_KV_REST_API_URL and UPSTASH_REDIS_REST_KV_REST_API_TOKEN environment variables');
+      logger.error('Redis connection error - check UPSTASH_REDIS_REST_KV_REST_API_URL and UPSTASH_REDIS_REST_KV_REST_API_TOKEN environment variables');
     }
     return null;
   }
@@ -58,10 +59,10 @@ export async function setLobby(lobby: Lobby): Promise<void> {
     // Serialize and save with TTL
     await client.setex(`lobby:${lobby.id}`, LOBBY_TTL, JSON.stringify(lobby));
   } catch (error) {
-    console.error('Error setting lobby in Redis:', error);
+    logger.error('Error setting lobby in Redis', error as Error, { lobbyId: lobby.id });
     // Check if it's a connection/credentials error
     if (error instanceof Error && error.message.includes('credentials')) {
-      console.error('Redis connection error - check UPSTASH_REDIS_REST_KV_REST_API_URL and UPSTASH_REDIS_REST_KV_REST_API_TOKEN environment variables');
+      logger.error('Redis connection error - check UPSTASH_REDIS_REST_KV_REST_API_URL and UPSTASH_REDIS_REST_KV_REST_API_TOKEN environment variables');
     }
     throw error;
   }
