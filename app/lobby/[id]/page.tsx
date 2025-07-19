@@ -357,6 +357,7 @@ export default function LobbyPage() {
           
           // If this is the current player, trigger animations
           if (data.playerId === playerId) {
+            console.log('Triggering success animation at position:', clickPosition);
             setShowSuccess(true);
             setTimeout(() => setShowSuccess(false), 2000);
             if (data.emojiId) {
@@ -909,39 +910,57 @@ export default function LobbyPage() {
                     transform: 'translate(-50%, -50%)',
                   }}
                 >
-                  {/* Generate confetti emojis */}
-                  {[...Array(20)].map((_, i) => {
-                    const angle = (i * 360) / 20;
-                    const distance = 80 + Math.random() * 120;
-                    const duration = 0.8 + Math.random() * 0.4;
+                  {/* Generate confetti emojis - optimized for performance */}
+                  <style dangerouslySetInnerHTML={{
+                    __html: `
+                      @keyframes confetti-explode {
+                        0% {
+                          transform: translate(-50%, -50%) translateX(var(--start-x, 0)) translateY(var(--start-y, 0)) scale(0) rotate(0deg);
+                          opacity: 0;
+                        }
+                        20% {
+                          transform: translate(-50%, -50%) translateX(calc(var(--end-x, 0) * 0.3)) translateY(calc(var(--end-y, 0) * 0.3)) scale(1.2) rotate(180deg);
+                          opacity: 1;
+                        }
+                        100% {
+                          transform: translate(-50%, -50%) translateX(var(--end-x, 0)) translateY(var(--end-y, 0)) scale(0.3) rotate(720deg);
+                          opacity: 0;
+                        }
+                      }
+                    `
+                  }} />
+                  {[...Array(8)].map((_, i) => {
+                    const emojis = ['✨', '🎉', '⭐', '🎊'];
+                    const emoji = emojis[i % emojis.length];
+                    const angle = (i * 45); // 8 directions
+                    const distance = 100 + (i % 2) * 20; // Vary distance
+                    
+                    // Calculate end position
+                    const radian = (angle * Math.PI) / 180;
+                    const endX = Math.cos(radian) * distance;
+                    const endY = Math.sin(radian) * distance;
+                    
+                    // Diagonal particles (corners) move slower to create circular effect
+                    const isDiagonal = i % 2 === 1;
+                    const duration = isDiagonal ? 0.85 : 0.6;
+                    
                     return (
                       <div
                         key={i}
-                        className="absolute text-3xl"
+                        className="absolute text-2xl pointer-events-none"
                         style={{
                           left: '0',
                           top: '0',
-                          animation: `confetti-${i} ${duration}s ease-out forwards`,
-                          animationDelay: `${Math.random() * 0.1}s`,
-                        }}
+                          opacity: 0,
+                          '--end-x': `${endX}px`,
+                          '--end-y': `${endY}px`,
+                          '--start-x': '0px',
+                          '--start-y': '0px',
+                          animation: `confetti-explode ${duration}s ease-out forwards`,
+                          animationDelay: `0s`,
+                        } as React.CSSProperties}
                       >
-                        <style
-                          dangerouslySetInnerHTML={{
-                            __html: `
-                          @keyframes confetti-${i} {
-                            0% {
-                              opacity: 1;
-                              transform: rotate(${angle}deg) translateY(0) scale(1) rotate(0deg);
-                            }
-                            100% {
-                              opacity: 0;
-                              transform: rotate(${angle}deg) translateY(-${distance}px) scale(0.3) rotate(720deg);
-                            }
-                          }
-                        `,
-                          }}
-                        />
-                        ✅
+                        {emoji}
                       </div>
                     );
                   })}

@@ -146,4 +146,69 @@
       transform: translateX(3px);
     }
   }
+  
+  /* Optimized confetti burst animations */
+  @keyframes confetti-burst-0 {
+    0% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translate3d(100px, -120px, 0) scale(0.3) rotate(180deg);
+    }
+  }
+  
+  @keyframes confetti-burst-1 {
+    0% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translate3d(-100px, -120px, 0) scale(0.3) rotate(-180deg);
+    }
+  }
+  
+  @keyframes confetti-burst-2 {
+    0% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translate3d(120px, -80px, 0) scale(0.3) rotate(360deg);
+    }
+  }
+  
+  @keyframes confetti-burst-3 {
+    0% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translate3d(-120px, -80px, 0) scale(0.3) rotate(-360deg);
+    }
+  }
+  
+  .confetti-burst-0 {
+    animation: confetti-burst-0 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+    will-change: transform, opacity;
+  }
+  
+  .confetti-burst-1 {
+    animation: confetti-burst-1 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+    will-change: transform, opacity;
+  }
+  
+  .confetti-burst-2 {
+    animation: confetti-burst-2 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+    will-change: transform, opacity;
+  }
+  
+  .confetti-burst-3 {
+    animation: confetti-burst-3 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+    will-change: transform, opacity;
+  }
 }
