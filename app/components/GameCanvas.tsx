@@ -56,6 +56,7 @@ export default function GameCanvas({
   const animationFrameRef = useRef<number>();
   const timerRef = useRef<NodeJS.Timeout>();
   const hasScrolledToCenter = useRef(false);
+  const [canvasError, setCanvasError] = useState<string | null>(null);
 
   /**
    * Security measures - Prevent easy cheating
@@ -281,61 +282,89 @@ export default function GameCanvas({
     }
 
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    let ctx: CanvasRenderingContext2D | null = null;
+    
+    try {
+      ctx = canvas.getContext('2d');
+      if (!ctx) {
+        setCanvasError('Unable to initialize canvas rendering');
+        return;
+      }
+    } catch (err) {
+      console.error('Canvas initialization error:', err);
+      setCanvasError('Canvas is not supported in your browser');
+      return;
+    }
 
     const render = () => {
-      // Clear for transparency
-      ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      if (!ctx) return;
+      
+      try {
+        // Clear for transparency
+        ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-      if (
-        round.emojiPositions &&
-        round.emojiPositions.length > 0 &&
-        round.targetEmoji
-      ) {
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'alphabetic';
+        if (
+          round.emojiPositions &&
+          round.emojiPositions.length > 0 &&
+          round.targetEmoji
+        ) {
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'alphabetic';
+          
+          // Render each emoji with effects
+          round.emojiPositions.forEach((emoji) => {
+            try {
+              // Determine visual state
+              const isTargetEmoji = emoji.emoji === round.targetEmoji;
+              const shouldHighlight =
+                (highlightTargetEmoji && isTargetEmoji) ||
+                (foundEmojiId && emoji.id === foundEmojiId);
+              const shouldDim =
+                (highlightTargetEmoji || foundEmojiId) && !shouldHighlight;
+
+              ctx.save();
+
+              // Dim non-target emojis
+              if (shouldDim) {
+                ctx.globalAlpha = 0.2;
+              }
+
+              // Draw emoji with cross-platform font stack
+              ctx.font = `${emoji.fontSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", "EmojiSymbols", "EmojiOne Mozilla", "Twemoji Mozilla", "Segoe UI Symbol", Arial`;
+              ctx.fillStyle = '#000';
+              ctx.fillText(emoji.emoji, emoji.x, emoji.y);
+
+              // Highlight effect for found/target emoji
+              if (shouldHighlight) {
+                const centerX = emoji.x + emoji.fontSize / 2;
+                const centerY = emoji.y - emoji.fontSize * 0.3;
+                const radius = emoji.fontSize * 0.8;
+
+                // Green glowing circle
+                ctx.strokeStyle = '#4ADE80';
+                ctx.lineWidth = 4;
+                ctx.shadowColor = '#4ADE80';
+                ctx.shadowBlur = 20;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                ctx.stroke();
+              }
+
+              ctx.restore();
+            } catch (err) {
+              console.error('Error rendering emoji:', err);
+              // Continue rendering other emojis
+            }
+          });
+        }
         
-        // Render each emoji with effects
-        round.emojiPositions.forEach((emoji) => {
-          // Determine visual state
-          const isTargetEmoji = emoji.emoji === round.targetEmoji;
-          const shouldHighlight =
-            (highlightTargetEmoji && isTargetEmoji) ||
-            (foundEmojiId && emoji.id === foundEmojiId);
-          const shouldDim =
-            (highlightTargetEmoji || foundEmojiId) && !shouldHighlight;
-
-          ctx.save();
-
-          // Dim non-target emojis
-          if (shouldDim) {
-            ctx.globalAlpha = 0.2;
-          }
-
-          // Draw emoji with cross-platform font stack
-          ctx.font = `${emoji.fontSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", "EmojiSymbols", "EmojiOne Mozilla", "Twemoji Mozilla", "Segoe UI Symbol", Arial`;
-          ctx.fillStyle = '#000';
-          ctx.fillText(emoji.emoji, emoji.x, emoji.y);
-
-          // Highlight effect for found/target emoji
-          if (shouldHighlight) {
-            const centerX = emoji.x + emoji.fontSize / 2;
-            const centerY = emoji.y - emoji.fontSize * 0.3;
-            const radius = emoji.fontSize * 0.8;
-
-            // Green glowing circle
-            ctx.strokeStyle = '#4ADE80';
-            ctx.lineWidth = 4;
-            ctx.shadowColor = '#4ADE80';
-            ctx.shadowBlur = 20;
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-            ctx.stroke();
-          }
-
-          ctx.restore();
-        });
+        // Clear any previous canvas errors if rendering succeeds
+        if (canvasError) {
+          setCanvasError(null);
+        }
+      } catch (err) {
+        console.error('Canvas rendering error:', err);
+        setCanvasError('Failed to render game canvas');
       }
     };
 
@@ -347,7 +376,7 @@ export default function GameCanvas({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [round, highlightTargetEmoji, foundEmojiId]);
+  }, [round, highlightTargetEmoji, foundEmojiId, canvasError]);
 
   // Center scroll on mobile when round starts
   useEffect(() => {
@@ -392,25 +421,37 @@ export default function GameCanvas({
       className={`relative w-full h-full bg-gray-900 ${isMobile ? 'overflow-x-auto overflow-y-hidden flex items-center' : 'flex items-center justify-center'}`}
       style={{ opacity }}
     >
-      <div className={isMobile ? 'flex items-center h-full' : ''}>
-        <canvas
-          ref={canvasRef}
-          width={CANVAS_WIDTH}
-          height={CANVAS_HEIGHT}
-          onClick={handleCanvasClick}
-          onTouchStart={handleCanvasTouchStart}
-          onTouchEnd={handleCanvasTouchEnd}
-          className="cursor-pointer no-select"
-          style={{
-            width: CANVAS_WIDTH * scale,
-            height: CANVAS_HEIGHT * scale,
-            maxHeight: isMobile ? '100%' : 'none',
-            imageRendering: 'crisp-edges',
-            cursor: disabled ? 'not-allowed' : 'pointer',
-            touchAction: isMobile ? 'pan-x' : 'none', // Allow horizontal scrolling on mobile
-          }}
-        />
-      </div>
+      {canvasError ? (
+        <div className="flex flex-col items-center justify-center h-full p-8">
+          <div className="bg-red-600/20 border border-red-600/50 rounded-lg p-6 max-w-md text-center">
+            <p className="text-red-400 text-lg mb-2">Canvas Error</p>
+            <p className="text-gray-300">{canvasError}</p>
+            <p className="text-gray-400 text-sm mt-4">
+              Please try refreshing the page or using a different browser.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className={isMobile ? 'flex items-center h-full' : ''}>
+          <canvas
+            ref={canvasRef}
+            width={CANVAS_WIDTH}
+            height={CANVAS_HEIGHT}
+            onClick={handleCanvasClick}
+            onTouchStart={handleCanvasTouchStart}
+            onTouchEnd={handleCanvasTouchEnd}
+            className="cursor-pointer no-select"
+            style={{
+              width: CANVAS_WIDTH * scale,
+              height: CANVAS_HEIGHT * scale,
+              maxHeight: isMobile ? '100%' : 'none',
+              imageRendering: 'crisp-edges',
+              cursor: disabled ? 'not-allowed' : 'pointer',
+              touchAction: isMobile ? 'pan-x' : 'none', // Allow horizontal scrolling on mobile
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

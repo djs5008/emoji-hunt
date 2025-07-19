@@ -163,7 +163,6 @@ export async function handleEmojiClick(
 
   // End round early if everyone found it
   if (currentRound.foundBy.length === lobby.players.length) {
-    console.log(`All players found the emoji in round ${currentRound.number}`);
     await checkAndEndRound(lobbyId, currentRound.number);
   }
 

@@ -22,7 +22,7 @@ import Scoreboard from '@/app/components/Scoreboard';
 import EmojiBackground from '@/app/components/EmojiBackground';
 import { Lobby } from '@/app/types/game';
 import { SSEClient } from '@/app/lib/sse-client';
-import { getPlayerId } from '@/app/lib/player-storage';
+// Session management is now handled server-side
 
 /**
  * Main lobby/game page component
@@ -38,6 +38,7 @@ export default function LobbyPage() {
 
   const [lobby, setLobby] = useState<Lobby | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
+  const playerIdRef = useRef<string | null>(null);
   const [isHost, setIsHost] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showRoundScore, setShowRoundScore] = useState(false);
@@ -66,32 +67,32 @@ export default function LobbyPage() {
   const roundTimerRef = useRef<NodeJS.Timeout | null>(null);
   const stateTransitionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Get player ID from storage
+  // Check if player is host
   useEffect(() => {
-    const storedPlayerId = getPlayerId();
-    if (!storedPlayerId) {
-      // Redirect to home with lobby code prefilled
-      router.push(`/?join=${lobbyId}`);
-      return;
-    }
-    setPlayerId(storedPlayerId);
-    
-    // Check if player is host
     const hostToken = sessionStorage.getItem(`host-${lobbyId}`);
     if (hostToken) {
       setIsHost(true);
     }
-  }, [router, lobbyId]);
+    
+    // Player ID will be determined by server session
+    setPlayerId('pending'); // Placeholder until we get it from server
+  }, [lobbyId]);
+
+  // Keep playerIdRef in sync
+  useEffect(() => {
+    playerIdRef.current = playerId;
+  }, [playerId]);
 
   // Initial lobby fetch and rejoin
   useEffect(() => {
     if (!playerId) return;
 
     // First check if lobby exists
-    fetch(`/api/lobby/${lobbyId}`)
+    fetch(`/api/lobby/${lobbyId}`, {
+      credentials: 'include'
+    })
       .then((res) => res.json())
       .then((lobbyData) => {
-        console.log('[Lobby] Initial fetch result:', lobbyData);
         if (!lobbyData || lobbyData.error) {
           // Lobby doesn't exist - show error
           setError('This lobby doesn\'t exist');
@@ -102,7 +103,8 @@ export default function LobbyPage() {
         return fetch('/api/lobby/rejoin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lobbyId, playerId }),
+          body: JSON.stringify({ lobbyId }),
+          credentials: 'include'
         })
           .then((res) => res.json())
           .then((rejoinData) => {
@@ -120,9 +122,14 @@ export default function LobbyPage() {
         
         setLobby(lobbyData);
         
-        // Check if player is actually the host based on lobby data
-        if (lobbyData.hostId === playerId) {
-          setIsHost(true);
+        // Check if player is in the lobby and get their ID
+        const currentPlayer = lobbyData.players.find((p: any) => p.isCurrent);
+        if (currentPlayer) {
+          setPlayerId(currentPlayer.id);
+          // Check if player is actually the host based on lobby data
+          if (lobbyData.hostId === currentPlayer.id) {
+            setIsHost(true);
+          }
         }
 
         // If game is in progress, restore the countdown/round state
@@ -163,41 +170,40 @@ export default function LobbyPage() {
 
   // Connect to SSE
   useEffect(() => {
-    if (!playerId || !lobbyId || error) return;
+    if (!lobbyId || error) return;
+    // Don't wait for playerId since it's handled by session
 
-    const sseClient = new SSEClient(lobbyId, playerId);
+    const sseClient = new SSEClient(lobbyId, 'session'); // Use 'session' as placeholder
     sseClientRef.current = sseClient;
 
     sseClient.connect({
       onConnected: async (data) => {
-        console.log('[SSE] Connected:', data);
-        setIsHost(data.isHost);
+          setIsHost(data.isHost);
+        setPlayerId(data.playerId); // Set the actual player ID from SSE
         setError(null); // Clear any connection errors
         
         // Fetch current lobby state after reconnection
         try {
-          const response = await fetch(`/api/lobby/${lobbyId}`);
+          const response = await fetch(`/api/lobby/${lobbyId}`, {
+            credentials: 'include'
+          });
           if (response.ok) {
             const lobbyData = await response.json();
             setLobby(lobbyData);
           }
         } catch (err) {
-          console.error('[SSE] Failed to fetch lobby state after reconnection:', err);
         }
       },
       
       onPlayerJoined: (data) => {
-        console.log('[SSE] Player joined:', data);
         setLobby(data.lobby);
       },
       
       onPlayerLeft: (data) => {
-        console.log('[SSE] Player left:', data);
         setLobby(data.lobby);
       },
       
       onGameStarted: (data) => {
-        console.log('[SSE] Game started:', data);
         setStartingGame(false);
         setShowRoundScore(false);
         setShowCorrectAnswer(false);
@@ -232,7 +238,6 @@ export default function LobbyPage() {
       },
       
       onRoundStarted: (data) => {
-        console.log('[SSE] Round started:', data);
         setCountdown(null);
         setShowRoundScore(false);
         setShowCorrectAnswer(false);
@@ -267,7 +272,6 @@ export default function LobbyPage() {
       },
       
       onRoundEnded: (data) => {
-        console.log('[SSE] Round ended:', data);
         
         // Clear the round timer if it's still running
         if (roundTimerRef.current) {
@@ -334,7 +338,6 @@ export default function LobbyPage() {
       },
       
       onEmojiFound: (data) => {
-        console.log('[SSE] Emoji found:', data);
         setFoundCount(data.foundCount);
         
         // Update player scores first to get the correct starting score
@@ -356,10 +359,18 @@ export default function LobbyPage() {
           });
           
           // If this is the current player, trigger animations
-          if (data.playerId === playerId) {
-            console.log('Triggering success animation at position:', clickPosition);
+          // Use ref to get current playerId value
+          const currentPlayerId = playerIdRef.current;
+          
+          // Return the updated lobby state
+          const updatedLobby = { ...prev, players: updatedPlayers };
+          
+          // Schedule animations after state update if this is the current player
+          if (currentPlayerId && data.playerId === currentPlayerId) {
             setShowSuccess(true);
-            setTimeout(() => setShowSuccess(false), 2000);
+            setTimeout(() => {
+              setShowSuccess(false);
+            }, 2000);
             if (data.emojiId) {
               setPlayerFoundEmojiId(data.emojiId);
             }
@@ -397,7 +408,9 @@ export default function LobbyPage() {
       },
       
       onWrongEmoji: (data) => {
-        if (data.playerId === playerId) {
+        const currentPlayerId = playerIdRef.current;
+        
+        if (currentPlayerId && data.playerId === currentPlayerId) {
           setShowWrongEmoji(true);
           setWrongEmojiClicked(data.clickedEmoji || null);
           setTimeout(() => {
@@ -408,7 +421,6 @@ export default function LobbyPage() {
       },
       
       onGameEnded: (data) => {
-        console.log('[SSE] Game ended:', data);
         setShowRoundScore(false);
         setShowFinalScore(true);
         setLobby((prev) =>
@@ -423,7 +435,6 @@ export default function LobbyPage() {
       },
       
       onGameReset: (data) => {
-        console.log('[SSE] Game reset:', data);
         setLobby(data.lobby);
         setShowFinalScore(false);
         setShowRoundScore(false);
@@ -442,12 +453,17 @@ export default function LobbyPage() {
       
       onError: (error) => {
         console.error('[SSE] Error:', error);
-        setError('Connection lost. Trying to reconnect...');
+        if (error.message?.includes('Failed to fetch')) {
+          setError('Connection lost - trying to reconnect...');
+        } else if (error.message?.includes('429')) {
+          setError('Too many requests - please wait a moment');
+        } else {
+          setError('Connection lost - trying to reconnect...');
+        }
       },
     });
 
     return () => {
-      console.log('[SSE] Main cleanup - disconnecting...');
       sseClient.disconnect();
       sseClientRef.current = null;
       
@@ -464,13 +480,30 @@ export default function LobbyPage() {
         clearTimeout(stateTransitionTimeoutRef.current);
       }
     };
-  }, [playerId, lobbyId, router]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lobbyId, router]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Send leave on any unmount (navigation, refresh, close)
+  // Track if component is truly unmounting
+  const isUnmountingRef = useRef(false);
+  
+  // Send leave only on true unmount (navigation, refresh, close)
+  useEffect(() => {
+    // Set unmounting flag when component unmounts
+    return () => {
+      isUnmountingRef.current = true;
+    };
+  }, []); // Empty deps - only runs once
+  
   useEffect(() => {
     return () => {
-      // Always send leave when component unmounts
-      console.log('[Lobby] Component unmounting - sending leave request');
+      // Only send leave if truly unmounting and player is in lobby
+      if (!isUnmountingRef.current) {
+        return;
+      }
+      
+      if (!lobby || !lobby.players.find(p => p.id === playerId)) {
+        return;
+      }
+      
       
       // Disconnect SSE
       if (sseClientRef.current) {
@@ -478,22 +511,21 @@ export default function LobbyPage() {
         sseClientRef.current = null;
       }
       
-      // Send leave request
-      if (playerId && navigator.sendBeacon) {
-        const data = JSON.stringify({ playerId });
-        const sent = navigator.sendBeacon(`/api/lobby/${lobbyId}/leave`, data);
-        console.log(`[Lobby] Leave request ${sent ? 'sent' : 'failed'}`);
+      // Send leave request (session will identify the player)
+      if (navigator.sendBeacon) {
+        const sent = navigator.sendBeacon(`/api/lobby/${lobbyId}/leave`, '{}');
       }
     };
-  }, [playerId, lobbyId]);
+  }, [playerId, lobbyId, lobby]);
 
   // Check and start round
   const checkAndStartRound = useCallback(async () => {
-    console.log('[Game] Attempting to start round...');
     
     // Get the latest lobby state
     try {
-      const lobbyRes = await fetch(`/api/lobby/${lobbyId}`);
+      const lobbyRes = await fetch(`/api/lobby/${lobbyId}`, {
+        credentials: 'include'
+      });
       const currentLobby = await lobbyRes.json();
       
       if (!currentLobby || currentLobby.error) {
@@ -501,7 +533,6 @@ export default function LobbyPage() {
         return;
       }
       
-      console.log('[Game] Current lobby state:', currentLobby.gameState, 'Round:', currentLobby.currentRound);
       
       const res = await fetch('/api/game/check-round-start', {
         method: 'POST',
@@ -510,10 +541,10 @@ export default function LobbyPage() {
           lobbyId, 
           roundNum: currentLobby.currentRound 
         }),
+        credentials: 'include'
       });
       
       const data = await res.json();
-      console.log('[Game] Check round start result:', data);
     } catch (err) {
       console.error('[Game] Failed to check round start:', err);
     }
@@ -521,10 +552,11 @@ export default function LobbyPage() {
 
   // Preload round data
   const preloadRoundData = useCallback(async () => {
-    console.log('[Game] Preloading round data...');
     
     try {
-      const lobbyRes = await fetch(`/api/lobby/${lobbyId}`);
+      const lobbyRes = await fetch(`/api/lobby/${lobbyId}`, {
+        credentials: 'include'
+      });
       const currentLobby = await lobbyRes.json();
       
       if (!currentLobby || currentLobby.error) {
@@ -539,10 +571,10 @@ export default function LobbyPage() {
           lobbyId, 
           roundNum: currentLobby.currentRound 
         }),
+        credentials: 'include'
       });
       
       const data = await res.json();
-      console.log('[Game] Preload result:', data);
     } catch (err) {
       console.error('[Game] Failed to preload round:', err);
     }
@@ -607,10 +639,10 @@ export default function LobbyPage() {
               lobbyId, 
               roundNum: currentRoundNum 
             }),
+            credentials: 'include'
           });
           
           const data = await res.json();
-          console.log('[Game] Check round end result:', data);
         } catch (err) {
           console.error('[Game] Failed to check round end:', err);
         }
@@ -632,10 +664,10 @@ export default function LobbyPage() {
           lobbyId, 
           roundNum 
         }),
+        credentials: 'include'
       });
       
       const data = await res.json();
-      console.log('[Game] Check progress result:', data);
     } catch (err) {
       console.error('[Game] Failed to check progress:', err);
     }
@@ -658,22 +690,33 @@ export default function LobbyPage() {
     if (!playerId || !lobby || startingGame) return;
 
     setStartingGame(true);
+    setError(null);
 
     try {
       const res = await fetch('/api/game/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lobbyId, playerId }),
+        body: JSON.stringify({ lobbyId }),
+        credentials: 'include',
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
-        setError(data.error || 'Failed to start game');
+        const errorText = await res.text();
+        try {
+          const errorData = JSON.parse(errorText);
+          setError(errorData.error || `Failed to start game: ${res.status}`);
+        } catch {
+          setError(`Failed to start game: ${res.status} ${res.statusText}`);
+        }
         setStartingGame(false);
       }
     } catch (err) {
-      setError('Failed to start game');
+      console.error('Error starting game:', err);
+      if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+        setError('Network error - please check your connection');
+      } else {
+        setError('Failed to start game. Please try again.');
+      }
       setStartingGame(false);
     }
   }, [lobbyId, playerId, lobby, startingGame]);
@@ -698,14 +741,18 @@ export default function LobbyPage() {
         const res = await fetch('/api/game/click', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lobbyId, playerId, emojiId }),
+          body: JSON.stringify({ lobbyId, emojiId }),
+          credentials: 'include'
         });
 
         if (!res.ok) {
-          console.error('Failed to submit click');
+          console.error('Failed to submit click:', res.status);
+          // Don't show error to user for click failures - it would be too disruptive
+          // The game will continue and SSE will sync the state
         }
       } catch (err) {
         console.error('Error submitting click:', err);
+        // Don't show error to user for click failures
       }
     },
     [lobbyId, playerId, lobby]
@@ -714,35 +761,67 @@ export default function LobbyPage() {
   const handlePlayAgain = useCallback(async () => {
     if (!playerId || !lobby) return;
 
+    setError(null);
+
     try {
       const res = await fetch('/api/game/reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lobbyId, playerId }),
+        body: JSON.stringify({ lobbyId }),
+        credentials: 'include'
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || 'Failed to reset game');
+        const errorText = await res.text();
+        try {
+          const errorData = JSON.parse(errorText);
+          setError(errorData.error || `Failed to reset game: ${res.status}`);
+        } catch {
+          setError(`Failed to reset game: ${res.status} ${res.statusText}`);
+        }
       }
     } catch (err) {
-      setError('Failed to reset game');
+      console.error('Error resetting game:', err);
+      if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+        setError('Network error - please check your connection');
+      } else {
+        setError('Failed to reset game. Please try again.');
+      }
     }
   }, [lobbyId, playerId, lobby]);
 
   const handleMainMenu = useCallback(async () => {
     // Navigate to main menu - the cleanup effect will handle leave
-    console.log('[Lobby] Returning to main menu');
     router.push('/');
   }, [router]);
 
   const [copied, setCopied] = useState(false);
-  const handleCopyLobbyCode = useCallback(() => {
-    // Copy the full URL instead of just the code
-    const fullUrl = `${window.location.origin}/lobby/${lobby?.id || ''}`;
-    navigator.clipboard.writeText(fullUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopyLobbyCode = useCallback(async () => {
+    try {
+      // Copy the full URL instead of just the code
+      const fullUrl = `${window.location.origin}/lobby/${lobby?.id || ''}`;
+      await navigator.clipboard.writeText(fullUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy to clipboard:', err);
+      // Fallback for older browsers or permission denied
+      const textArea = document.createElement('textarea');
+      textArea.value = `${window.location.origin}/lobby/${lobby?.id || ''}`;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        console.error('Fallback copy failed:', err);
+      }
+      document.body.removeChild(textArea);
+    }
   }, [lobby?.id]);
 
 

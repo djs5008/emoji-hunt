@@ -77,3 +77,6 @@ pids
 *~
 .temp
 .tmp
+
+# Claude agent files
+CLAUDE.local.md

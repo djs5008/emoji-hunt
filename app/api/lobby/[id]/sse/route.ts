@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { getLobby } from '@/app/lib/game-state-async';
 import { setex, del, lrange, rpush } from '@/app/lib/upstash-redis';
 import { checkDisconnectedPlayers } from '@/app/lib/player-heartbeat';
+import { SessionManager } from '@/app/lib/player-session';
 
 /**
  * Server-Sent Events (SSE) endpoint for real-time lobby updates
@@ -33,13 +34,13 @@ const SSE_HEADERS = {
 /**
  * Establishes SSE connection for real-time updates
  * 
- * @param request - The incoming request with playerId query parameter
+ * @param request - The incoming request (session authentication via cookies)
  * @param params - Route parameters containing lobby ID
  * 
  * @returns SSE stream for real-time events
  * 
  * @example
- * GET /api/lobby/ABC123/sse?playerId=player_xyz
+ * GET /api/lobby/ABC123/sse
  * 
  * Event types sent:
  * - connected: Initial connection confirmation
@@ -52,7 +53,7 @@ const SSE_HEADERS = {
  * - round_ended: Round completed
  * - game_ended: Game finished
  * 
- * @throws {400} If playerId is missing
+ * @throws {401} If no valid session exists
  * @throws {404} If lobby doesn't exist
  * @throws {403} If player is not in the lobby
  */
@@ -61,12 +62,15 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   const lobbyId = params.id;
-  const playerId = request.nextUrl.searchParams.get('playerId');
   
-  // Validate player ID
-  if (!playerId) {
-    return new Response('Player ID required', { status: 400 });
+  // Get session from cookies
+  const sessionData = await SessionManager.getSessionFromCookies();
+  if (!sessionData) {
+    return new Response('Unauthorized - no valid session', { status: 401 });
   }
+  
+  const { session } = sessionData;
+  const playerId = session.playerId;
 
   // Verify lobby exists
   const lobby = await getLobby(lobbyId);

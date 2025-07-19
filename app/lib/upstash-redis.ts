@@ -100,14 +100,3 @@ export async function rpush(key: string, ...values: any[]): Promise<number> {
   return await client.rpush(key, ...values);
 }
 
-/** Push to start of list */
-export async function lpush(key: string, ...values: any[]): Promise<number> {
-  const client = getUpstashRedis();
-  return await client.lpush(key, ...values);
-}
-
-/** Trim list to specified range */
-export async function ltrim(key: string, start: number, stop: number): Promise<string> {
-  const client = getUpstashRedis();
-  return await client.ltrim(key, start, stop);
-}

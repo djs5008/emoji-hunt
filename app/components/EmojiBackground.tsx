@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /**
  * EmojiBackground Component - Animated decorative background
@@ -53,13 +53,25 @@ export default function EmojiBackground() {
   const animationFrameRef = useRef<number>();
   const lastTimeRef = useRef<number>(0);
   const nextIdRef = useRef<number>(0);
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    let ctx: CanvasRenderingContext2D | null = null;
+    try {
+      ctx = canvas.getContext('2d');
+      if (!ctx) {
+        console.warn('Canvas 2D context not available');
+        setHasError(true);
+        return;
+      }
+    } catch (err) {
+      console.error('Failed to get canvas context:', err);
+      setHasError(true);
+      return;
+    }
 
     // Set canvas size
     const resizeCanvas = () => {
@@ -98,6 +110,7 @@ export default function EmojiBackground() {
      * Implements delta-time based movement for consistent speed regardless of framerate
      */
     const animate = (currentTime: number) => {
+      if (!ctx) return;
       const deltaTime = currentTime - lastTimeRef.current;
       
       // Cap delta to prevent huge jumps when tab is backgrounded
@@ -161,6 +174,11 @@ export default function EmojiBackground() {
       }
     };
   }, []);
+
+  if (hasError) {
+    // Return empty div if canvas is not supported
+    return <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }} />;
+  }
 
   return (
     <canvas

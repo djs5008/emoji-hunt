@@ -41,7 +41,6 @@ export interface Lobby {
   // Timing fields for state transitions
   countdownStartTime?: number; // Unix timestamp when countdown began
   roundEndTime?: number;       // Unix timestamp when round ended
-  nextPhaseTime?: number;      // Scheduled time for next phase (unused)
 }
 
 /**
@@ -54,7 +53,6 @@ export interface Round {
   startTime: number;       // Unix timestamp when round started
   endTime: number;         // Unix timestamp when round should end
   foundBy: { playerId: string; timestamp: number }[]; // Who found it and when
-  canvasBase64?: string;   // Reserved for server-side rendering (unused)
 }
 
 /**
@@ -68,24 +66,3 @@ export interface EmojiPosition {
   id: string;              // Unique identifier for click detection
 }
 
-/**
- * Real-time game event messages
- * Used for SSE broadcasting and client updates
- */
-export interface GameMessage {
-  type:
-    | 'playerJoined'      // New player entered lobby
-    | 'playerLeft'        // Player disconnected/left
-    | 'gameStarted'       // Game transitioned to countdown
-    | 'roundStarted'      // Round began (playing state)
-    | 'roundEnded'        // Round completed
-    | 'emojiFound'        // Player found target
-    | 'gameEnded'         // All rounds complete
-    | 'lobbyUpdate'       // General state update
-    | 'connected'         // SSE connection established
-    | 'gameReset'         // Game returned to waiting
-    | 'allPlayersFound'   // Everyone found target
-    | 'notEnoughPlayers'  // Cannot start with 1 player
-    | 'wrongEmoji';       // Player clicked wrong emoji
-  data: any;              // Event-specific payload
-}

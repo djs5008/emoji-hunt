@@ -1,4 +1,4 @@
-import { rpush, expire, keys, exists } from './upstash-redis';
+import { rpush, expire } from './upstash-redis';
 
 /**
  * Server-Sent Events (SSE) Broadcasting System
@@ -62,40 +62,3 @@ export async function broadcastToLobby(
   await expire(`lobby:${lobbyId}:events`, 5);
 }
 
-/**
- * Gets list of currently active players in a lobby
- * 
- * @description Identifies active players by checking for valid heartbeat keys
- * in Redis. Players with unexpired heartbeats are considered active.
- * 
- * @param {string} lobbyId - The lobby to check
- * @returns {Promise<string[]>} Array of active player IDs
- */
-export async function getActivePlayers(lobbyId: string): Promise<string[]> {
-  // Find all heartbeat keys for this lobby
-  const pattern = `player:${lobbyId}:*:heartbeat`;
-  const heartbeatKeys = await keys(pattern);
-  
-  // Extract player IDs from key names
-  const activePlayers: string[] = [];
-  for (const key of heartbeatKeys) {
-    const playerId = key.split(':')[2]; // Format: player:lobbyId:playerId:heartbeat
-    activePlayers.push(playerId);
-  }
-  
-  return activePlayers;
-}
-
-/**
- * Checks if a specific player is currently active
- * 
- * @description Quick check for player connection status based on heartbeat
- * 
- * @param {string} lobbyId - The lobby ID
- * @param {string} playerId - The player to check
- * @returns {Promise<boolean>} True if player has active heartbeat
- */
-export async function isPlayerActive(lobbyId: string, playerId: string): Promise<boolean> {
-  const result = await exists(`player:${lobbyId}:${playerId}:heartbeat`);
-  return result === 1;
-}

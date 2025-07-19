@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createLobby } from '@/app/lib/game-state-async';
+import { createLobby, getLobby } from '@/app/lib/game-state-async';
 import { nanoid } from 'nanoid';
 import { setex } from '@/app/lib/upstash-redis';
+import { SessionManager } from '@/app/lib/player-session';
+import { withRateLimitedRoute } from '@/app/lib/rate-limit-middleware';
 
 /**
  * Creates a new game lobby
@@ -9,15 +11,16 @@ import { setex } from '@/app/lib/upstash-redis';
  * @description This endpoint creates a new game lobby and assigns the creator as the host.
  * The host has special privileges like starting/resetting the game. Each lobby gets a
  * unique ID that other players can use to join.
+ * Rate limited to 5 requests per minute to prevent spam.
  * 
  * @param {NextRequest} request - The incoming request containing:
  *   - nickname: The display name for the host player
- *   - playerId: Optional existing player ID to reuse
  * 
  * @returns {NextResponse} JSON response containing:
  *   - lobby: The created lobby object with all game state
  *   - playerId: The ID assigned to the host player
  *   - hostToken: Authentication token for host privileges
+ *   - sessionToken: The session token (only for new sessions)
  *   - error: Error message if creation failed
  * 
  * @example
@@ -30,20 +33,23 @@ import { setex } from '@/app/lib/upstash-redis';
  * }
  * 
  * @throws {400} If nickname is missing or empty
+ * @throws {429} If rate limit exceeded
  * @throws {500} If there's a server error creating the lobby
  */
-export async function POST(request: NextRequest) {
+async function handleCreateLobby(request: NextRequest) {
   try {
     // Extract player information from request
-    const { nickname, playerId: existingPlayerId } = await request.json();
+    const { nickname } = await request.json();
     
     // Validate nickname
     if (!nickname || nickname.trim().length === 0) {
       return NextResponse.json({ error: 'Nickname is required' }, { status: 400 });
     }
     
-    // Use existing player ID if provided, otherwise generate new one
-    const playerId = existingPlayerId || nanoid();
+    // Get or create player session
+    const { session, isNew, token } = await SessionManager.getOrCreateSession();
+    const playerId = session.playerId;
+    
     const lobby = await createLobby(playerId, nickname.trim());
     
     // Set initial heartbeat for connection monitoring
@@ -55,13 +61,38 @@ export async function POST(request: NextRequest) {
     // Generate a unique host token for authentication
     const hostToken = nanoid();
     
-    return NextResponse.json({
+    const response: any = {
       lobby,
       playerId,
       hostToken, // Client should store this securely
-    });
+    };
+
+    // Include session token in response only for new sessions
+    if (isNew) {
+      response.sessionToken = session.id;
+    }
+    
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Error creating lobby:', error);
     return NextResponse.json({ error: 'Failed to create lobby' }, { status: 500 });
   }
 }
+
+// Export the rate-limited POST handler with custom session ID getter
+export const POST = withRateLimitedRoute(handleCreateLobby, {
+  config: 'LOBBY_CREATE',
+  errorMessage: 'Too many lobby creation attempts. Please wait before trying again.',
+  getSessionId: async (request: NextRequest) => {
+    // For lobby creation, allow rate limiting by IP if no session exists yet
+    const sessionData = await SessionManager.getSessionFromCookies();
+    if (sessionData) {
+      return sessionData.session.id;
+    }
+    
+    // Fallback to IP-based rate limiting for new users
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ip = forwarded ? forwarded.split(',')[0] : 'unknown';
+    return `ip:${ip}`;
+  },
+});

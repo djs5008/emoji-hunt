@@ -56,7 +56,6 @@ export class SSEClient {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000; // Base delay in ms
   private lobbyId: string;
-  private playerId: string;
   private connectionTimer: NodeJS.Timeout | null = null;
   private isIntentionalReconnect = false;
 
@@ -64,11 +63,10 @@ export class SSEClient {
    * Creates a new SSE client instance
    * 
    * @param {string} lobbyId - Target lobby to connect to
-   * @param {string} playerId - Player's unique identifier
    */
-  constructor(lobbyId: string, playerId: string) {
+  constructor(lobbyId: string, playerId?: string) {
     this.lobbyId = lobbyId;
-    this.playerId = playerId;
+    // playerId parameter kept for compatibility but ignored
   }
 
   /**
@@ -103,7 +101,8 @@ export class SSEClient {
       this.connectionTimer = null;
     }
 
-    const url = `/api/lobby/${this.lobbyId}/sse?playerId=${this.playerId}`;
+    // Session cookie will identify the player
+    const url = `/api/lobby/${this.lobbyId}/sse`;
     this.eventSource = new EventSource(url);
     
     // Set up proactive reconnection before 5-minute timeout (reconnect at 4.5 minutes)

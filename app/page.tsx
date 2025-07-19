@@ -13,7 +13,7 @@
 import { useState, useRef, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import EmojiBackground from './components/EmojiBackground';
-import { setPlayerId, getPlayerId } from './lib/player-storage';
+// Session management is now handled server-side
 
 /**
  * Main home page content component
@@ -55,17 +55,28 @@ function HomePageContent() {
     setError(null);
     
     try {
-      // Get existing player ID if available (for rejoin support)
-      const existingPlayerId = getPlayerId();
+      // Session management is now handled server-side
+      // No need to send player ID - server will create/use session
       
       const res = await fetch('/api/lobby/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          nickname: nickname.trim(),
-          playerId: existingPlayerId 
+          nickname: nickname.trim()
         }),
+        credentials: 'include',
       });
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        try {
+          const errorData = JSON.parse(errorText);
+          setError(errorData.error || `Server error: ${res.status}`);
+        } catch {
+          setError(`Server error: ${res.status} ${res.statusText}`);
+        }
+        return;
+      }
       
       const data = await res.json();
       if (data.error) {
@@ -73,14 +84,24 @@ function HomePageContent() {
         return;
       }
       
-      // Store player ID and host token for future use
-      setPlayerId(data.playerId);
-      sessionStorage.setItem(`host-${data.lobby.id}`, data.hostToken);
+      // Store host token for future use
+      // Session is managed server-side via cookies
+      try {
+        sessionStorage.setItem(`host-${data.lobby.id}`, data.hostToken);
+      } catch (err) {
+        console.warn('Could not store host token:', err);
+        // Continue - the lobby was created successfully
+      }
       
       // Navigate to lobby
       router.push(`/lobby/${data.lobby.id}`);
     } catch (err) {
-      setError('Failed to create lobby');
+      console.error('Error creating lobby:', err);
+      if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+        setError('Network error - please check your connection');
+      } else {
+        setError('Failed to create lobby. Please try again.');
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -108,22 +129,44 @@ function HomePageContent() {
       return;
     }
     
+    if (lobbyCode.trim().length !== 4) {
+      setError('Lobby code must be 4 characters');
+      return;
+    }
+    
     setIsProcessing(true);
     setError(null);
     
     try {
-      // Get existing player ID if available (for consistent identity)
-      const existingPlayerId = getPlayerId();
+      // Session management is now handled server-side
+      // No need to send player ID - server will use session
       
       const res = await fetch('/api/lobby/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           nickname: nickname.trim(),
-          lobbyId: lobbyCode.trim().toUpperCase(),
-          playerId: existingPlayerId
+          lobbyId: lobbyCode.trim().toUpperCase()
         }),
+        credentials: 'include',
       });
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        try {
+          const errorData = JSON.parse(errorText);
+          if (res.status === 404) {
+            setError('Lobby not found. Please check the code.');
+          } else if (res.status === 400 && errorData.error?.includes('already started')) {
+            setError('This game has already started.');
+          } else {
+            setError(errorData.error || `Server error: ${res.status}`);
+          }
+        } catch {
+          setError(`Server error: ${res.status} ${res.statusText}`);
+        }
+        return;
+      }
       
       const data = await res.json();
       if (data.error) {
@@ -131,13 +174,18 @@ function HomePageContent() {
         return;
       }
       
-      // Store player ID
-      setPlayerId(data.playerId);
+      // Session is managed server-side via cookies
+      // No need to store player ID client-side
       
       // Navigate to lobby
       router.push(`/lobby/${data.lobby.id}`);
     } catch (err) {
-      setError('Failed to join lobby');
+      console.error('Error joining lobby:', err);
+      if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+        setError('Network error - please check your connection');
+      } else {
+        setError('Failed to join lobby. Please try again.');
+      }
     } finally {
       setIsProcessing(false);
     }

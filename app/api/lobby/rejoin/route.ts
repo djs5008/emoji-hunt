@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getLobby } from '@/app/lib/game-state-async';
+import { SessionManager } from '@/app/lib/player-session';
 
 /**
  * Allows a player to rejoin an existing lobby
@@ -10,7 +11,6 @@ import { getLobby } from '@/app/lib/game-state-async';
  * 
  * @param {NextRequest} request - The incoming request containing:
  *   - lobbyId: The ID of the lobby to rejoin
- *   - playerId: The ID of the player attempting to rejoin
  * 
  * @returns {NextResponse} JSON response containing:
  *   - lobby: The current lobby state
@@ -20,25 +20,35 @@ import { getLobby } from '@/app/lib/game-state-async';
  * 
  * @example
  * POST /api/lobby/rejoin
- * Body: { lobbyId: "ABC123", playerId: "player_xyz" }
+ * Body: { lobbyId: "ABC123" }
  * Response: { 
  *   lobby: { ... },
  *   playerId: "player_xyz",
  *   player: { id: "player_xyz", nickname: "Alice", score: 100 }
  * }
  * 
- * @throws {400} If lobbyId or playerId is missing
+ * @throws {400} If lobbyId is missing
+ * @throws {401} If no valid session exists
  * @throws {404} If lobby doesn't exist or player not found in lobby
  * @throws {500} If there's a server error rejoining
  */
 export async function POST(request: NextRequest) {
   try {
-    // Extract rejoin credentials
-    const { lobbyId, playerId } = await request.json();
+    // Get player session from cookies
+    const sessionData = await SessionManager.getSessionFromCookies();
+    if (!sessionData) {
+      return NextResponse.json({ error: 'No valid session' }, { status: 401 });
+    }
+    
+    const { session } = sessionData;
+    const playerId = session.playerId;
+    
+    // Extract lobby ID
+    const { lobbyId } = await request.json();
     
     // Validate required fields
-    if (!lobbyId || !playerId) {
-      return NextResponse.json({ error: 'Lobby ID and player ID are required' }, { status: 400 });
+    if (!lobbyId) {
+      return NextResponse.json({ error: 'Lobby ID is required' }, { status: 400 });
     }
     
     // Fetch lobby data (case-insensitive)
