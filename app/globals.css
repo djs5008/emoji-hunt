@@ -1,0 +1,149 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  
+  :root {
+    --sat: env(safe-area-inset-top);
+    --sab: env(safe-area-inset-bottom);
+    --sal: env(safe-area-inset-left);
+    --sar: env(safe-area-inset-right);
+  }
+  
+  html, body {
+    background-color: rgb(17 24 39); /* bg-gray-900 */
+    height: 100%;
+  }
+  
+  /* Desktop: prevent overflow */
+  @media (min-width: 768px) {
+    html, body {
+      overflow: hidden;
+    }
+  }
+  
+  /* Mobile: allow overflow when needed */
+  @media (max-width: 767px) {
+    html {
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    body {
+      overflow: auto;
+      min-height: 100%;
+    }
+  }
+  
+  body {
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  
+  /* Mobile viewport fix */
+  @supports (-webkit-touch-callout: none) {
+    html {
+      height: -webkit-fill-available;
+    }
+  }
+  
+  /* Ensure emoji font support */
+  canvas {
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", "EmojiSymbols", "EmojiOne Mozilla", "Twemoji Mozilla", "Segoe UI Symbol", Arial;
+  }
+}
+
+@layer utilities {
+  .no-select {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  
+  .emoji-font {
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", "EmojiSymbols", "EmojiOne Mozilla", "Twemoji Mozilla", "Segoe UI Symbol", Arial;
+  }
+  
+  @keyframes bounce-subtle {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-10%);
+    }
+  }
+
+  .animate-bounce-subtle {
+    animation: bounce-subtle 2s ease-in-out infinite;
+  }
+  
+  @keyframes floatUp {
+    0% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-40px);
+    }
+  }
+  
+  @keyframes fadeInOut {
+    0% {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    20% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    80% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+  }
+  
+  @keyframes swipeEmoji {
+    0%, 100% {
+      transform: translateX(-10px) rotate(-10deg);
+    }
+    50% {
+      transform: translateX(10px) rotate(10deg);
+    }
+  }
+  
+  @keyframes dotLeft {
+    0%, 100% {
+      opacity: 0.2;
+      transform: translateX(0);
+    }
+    50% {
+      opacity: 0.8;
+      transform: translateX(-3px);
+    }
+  }
+  
+  @keyframes dotRight {
+    0%, 100% {
+      opacity: 0.2;
+      transform: translateX(0);
+    }
+    50% {
+      opacity: 0.8;
+      transform: translateX(3px);
+    }
+  }
+}
