@@ -415,10 +415,11 @@ function HomePageContent() {
       {/* Support buttons */}
       <div className="fixed bottom-4 right-4 md:bottom-8 md:right-8 flex flex-row gap-3 z-20">
         <a
-          href="https://github.com/djs5008/emoji-hunt"
+          href="https://github.com/djs5008/emoji-hunt/issues/new?assignees=&labels=bug%2C+triage&projects=&template=bug_report.md&title=%5BBUG%5D+"
           target="_blank"
           rel="noopener noreferrer"
           className="bg-gray-800/90 backdrop-blur-sm hover:bg-gray-700/90 text-white px-3 py-2 md:px-4 md:py-2.5 rounded-lg transition-all transform hover:scale-105 shadow-lg border border-gray-700/50 text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 whitespace-nowrap"
+          title="Report a bug on GitHub"
         >
           <span>Report a</span>
           <span className="text-base">🐛</span>
