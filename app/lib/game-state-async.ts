@@ -6,6 +6,7 @@ import {
   getLobby, 
   setLobby 
 } from './upstash-storage';
+import { Filter } from 'bad-words';
 
 /**
  * Game state management module
@@ -32,10 +33,32 @@ import {
  * - Case-insensitive when joining
  */
 export async function createLobby(hostId: string, hostNickname: string): Promise<Lobby> {
+  // Initialize bad words filter
+  const filter = new Filter();
+  
   // Generate human-friendly lobby code
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   const generateId = customAlphabet(alphabet, 4);
-  const lobbyId = generateId();
+  
+  // Generate lobby ID and ensure it doesn't contain bad words
+  let lobbyId: string;
+  let attempts = 0;
+  const maxAttempts = 100;
+  
+  do {
+    lobbyId = generateId();
+    attempts++;
+    
+    // Check if the generated code contains bad words
+    if (!filter.isProfane(lobbyId)) {
+      break;
+    }
+    
+    // Prevent infinite loop
+    if (attempts >= maxAttempts) {
+      throw new Error('Unable to generate clean lobby code');
+    }
+  } while (true);
   
   const lobby: Lobby = {
     id: lobbyId,

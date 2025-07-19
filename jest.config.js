@@ -23,12 +23,13 @@ const customJestConfig = {
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   testPathIgnorePatterns: ['<rootDir>/.next/', '<rootDir>/node_modules/'],
   transformIgnorePatterns: [
-    'node_modules/(?!(uncrypto|@upstash|nanoid)/)',
+    'node_modules/(?!(uncrypto|@upstash|nanoid|bad-words|badwords-list)/)',
   ],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
     '@upstash/redis': '<rootDir>/app/__mocks__/@upstash/redis.ts',
     '^nanoid$': '<rootDir>/app/__mocks__/nanoid.ts',
+    '^bad-words$': '<rootDir>/app/__mocks__/bad-words.ts',
   },
   testEnvironmentOptions: {
     url: 'http://localhost:3000',
