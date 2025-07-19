@@ -216,6 +216,7 @@ export default function LobbyPage() {
         setShowRoundScore(false);
         setShowCorrectAnswer(false);
         setCountdown(3); // Set initial countdown
+        setStartingGame(false); // Reset starting state when game actually starts
         setLobby((prev) => {
           const newState = prev
             ? {
@@ -720,7 +721,7 @@ export default function LobbyPage() {
         } catch {
           setError(`Failed to start game: ${res.status} ${res.statusText}`);
         }
-        // setStartingGame(false); // Remove this - state doesn't exist
+        setStartingGame(false); // Reset state on error
       }
     } catch (err) {
       console.error('Error starting game:', err);
@@ -729,7 +730,7 @@ export default function LobbyPage() {
       } else {
         setError('Failed to start game. Please try again.');
       }
-      // setStartingGame(false); // Remove this - state doesn't exist
+      setStartingGame(false); // Reset state on error
     }
   }, [lobbyId, playerId, lobby]);
 
@@ -774,6 +775,7 @@ export default function LobbyPage() {
     if (!playerId || !lobby) return;
 
     setError(null);
+    setStartingGame(false); // Reset the starting state when playing again
 
     try {
       const res = await fetch('/api/game/reset', {
