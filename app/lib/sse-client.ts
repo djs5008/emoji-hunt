@@ -1,43 +1,98 @@
+/**
+ * SSE Event Handler Interface
+ * 
+ * @description Defines callback functions for all possible server-sent events.
+ * Each handler receives event-specific data and is optional.
+ */
 export interface SSEEventHandler {
+  /** Fired when SSE connection is established */
   onConnected?: (data: { playerId: string; lobbyId: string; isHost: boolean }) => void;
+  /** New player joined the lobby */
   onPlayerJoined?: (data: { lobby: any; playerId: string }) => void;
+  /** Player disconnected or left */
   onPlayerLeft?: (data: { playerId: string; lobby: any }) => void;
+  /** Game transitioned to countdown state */
   onGameStarted?: (data: { countdownStartTime: number; currentRound: number }) => void;
+  /** Round data preloaded during countdown */
   onRoundPreloaded?: (data: { round: any; currentRound: number }) => void;
+  /** Round began (playing state) */
   onRoundStarted?: (data: { round: any; currentRound: number }) => void;
+  /** Round completed */
   onRoundEnded?: (data: { round: number; targetEmoji: string; scores: any[] }) => void;
+  /** Player found the target emoji */
   onEmojiFound?: (data: { playerId: string; points: number; foundCount: number; totalPlayers: number; emojiId: string }) => void;
+  /** Player clicked wrong emoji */
   onWrongEmoji?: (data: { playerId: string; clickedEmoji?: string }) => void;
+  /** All rounds complete */
   onGameEnded?: (data: { finalScores: any[]; winners: any[] }) => void;
+  /** Game reset to waiting state */
   onGameReset?: (data: { lobby: any }) => void;
+  /** General lobby state update */
   onLobbyUpdated?: (data: { lobby: any }) => void;
+  /** Not enough players to continue */
   onNotEnoughPlayers?: (data: { message: string }) => void;
+  /** Heartbeat pulse for connection monitoring */
   onHeartbeat?: (timestamp: number) => void;
+  /** Connection or other errors */
   onError?: (error: Error) => void;
 }
 
+/**
+ * Server-Sent Events Client
+ * 
+ * @description Manages real-time connection to the game server using SSE.
+ * Handles automatic reconnection, heartbeat monitoring, and event distribution.
+ * 
+ * Features:
+ * - Automatic reconnection with exponential backoff
+ * - Proactive reconnection before 5-minute timeout
+ * - Event handler registration and management
+ * - Connection state tracking
+ */
 export class SSEClient {
   private eventSource: EventSource | null = null;
   private handlers: SSEEventHandler = {};
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
-  private reconnectDelay = 1000;
+  private reconnectDelay = 1000; // Base delay in ms
   private lobbyId: string;
   private playerId: string;
   private connectionTimer: NodeJS.Timeout | null = null;
   private isIntentionalReconnect = false;
 
+  /**
+   * Creates a new SSE client instance
+   * 
+   * @param {string} lobbyId - Target lobby to connect to
+   * @param {string} playerId - Player's unique identifier
+   */
   constructor(lobbyId: string, playerId: string) {
     this.lobbyId = lobbyId;
     this.playerId = playerId;
   }
 
+  /**
+   * Initiates SSE connection with event handlers
+   * 
+   * @param {SSEEventHandler} handlers - Object containing event callbacks
+   */
   connect(handlers: SSEEventHandler): void {
     this.handlers = handlers;
     this.establishConnection();
   }
 
+  /**
+   * Establishes the SSE connection and sets up event listeners
+   * 
+   * @description Creates EventSource connection, registers all event handlers,
+   * and sets up proactive reconnection to prevent server-side timeouts.
+   * 
+   * Reconnection strategy:
+   * - Proactive: Reconnects at 4.5 minutes (before 5-minute server timeout)
+   * - Reactive: Reconnects on errors with exponential backoff
+   */
   private establishConnection(): void {
+    // Close existing connection if any
     if (this.eventSource) {
       this.eventSource.close();
     }
@@ -52,6 +107,7 @@ export class SSEClient {
     this.eventSource = new EventSource(url);
     
     // Set up proactive reconnection before 5-minute timeout (reconnect at 4.5 minutes)
+    // This prevents the server from closing the connection due to inactivity
     this.connectionTimer = setTimeout(() => {
       console.log('[SSE] Proactive reconnection to prevent timeout...');
       this.isIntentionalReconnect = true;
@@ -130,7 +186,16 @@ export class SSEClient {
       this.handlers.onHeartbeat?.(timestamp);
     });
 
-    this.eventSource.onerror = (error) => {
+    /**
+     * Error handler with automatic reconnection logic
+     * 
+     * Implements exponential backoff:
+     * - 1st attempt: 1 second
+     * - 2nd attempt: 2 seconds
+     * - 3rd attempt: 3 seconds
+     * - etc., up to 5 attempts
+     */
+    this.eventSource.onerror = () => {
       // Check if the connection was closed intentionally
       if (this.eventSource?.readyState === EventSource.CLOSED || this.isIntentionalReconnect) {
         this.isIntentionalReconnect = false;
@@ -139,7 +204,7 @@ export class SSEClient {
       
       this.handlers.onError?.(new Error('SSE connection error'));
       
-      // Attempt to reconnect
+      // Attempt to reconnect with exponential backoff
       if (this.reconnectAttempts < this.maxReconnectAttempts) {
         this.reconnectAttempts++;
         
@@ -153,6 +218,12 @@ export class SSEClient {
     };
   }
 
+  /**
+   * Closes the SSE connection and cleans up resources
+   * 
+   * @description Properly closes EventSource and clears all timers.
+   * Should be called when leaving a lobby or unmounting components.
+   */
   disconnect(): void {
     if (this.eventSource) {
       this.eventSource.close();
@@ -166,6 +237,11 @@ export class SSEClient {
     }
   }
 
+  /**
+   * Checks if the SSE connection is currently open
+   * 
+   * @returns {boolean} True if connected, false otherwise
+   */
   isConnected(): boolean {
     return this.eventSource?.readyState === EventSource.OPEN;
   }

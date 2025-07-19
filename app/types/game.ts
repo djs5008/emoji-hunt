@@ -1,62 +1,91 @@
+/**
+ * Game Type Definitions
+ * 
+ * @description Core TypeScript interfaces defining the structure of game data.
+ * These types ensure type safety across the application and provide clear
+ * documentation of data structures.
+ */
+
+/**
+ * Player representation in the game
+ */
 export interface Player {
-  id: string;
-  nickname: string;
-  avatar: string;
-  score: number;
-  roundScores: RoundScore[];
-  isHost: boolean;
+  id: string;              // Unique player identifier (nanoid)
+  nickname: string;        // Display name chosen by player
+  avatar: string;          // Face emoji for visual identification
+  score: number;           // Total accumulated score
+  roundScores: RoundScore[]; // Performance history per round
+  isHost: boolean;         // Whether player can control game
 }
 
+/**
+ * Individual round performance record
+ */
 export interface RoundScore {
-  round: number;
-  timeToFind: number | null;
-  points: number;
+  round: number;           // Round number (1-5)
+  timeToFind: number | null; // Seconds to find target (null if not found)
+  points: number;          // Points earned this round
 }
 
+/**
+ * Game lobby containing all game state
+ */
 export interface Lobby {
-  id: string;
-  hostId: string;
-  players: Player[];
+  id: string;              // 4-character lobby code
+  hostId: string;          // Player ID of current host
+  players: Player[];       // All connected players
   gameState: 'waiting' | 'countdown' | 'playing' | 'roundEnd' | 'finished';
-  currentRound: number;
-  rounds: Round[];
-  countdownStartTime?: number; // When countdown started (for resuming after refresh)
-  roundEndTime?: number; // When round ended (for timing transitions)
-  nextPhaseTime?: number; // When the next game phase should execute
+  currentRound: number;    // Current round number (0 = not started)
+  rounds: Round[];         // Data for each round
+  
+  // Timing fields for state transitions
+  countdownStartTime?: number; // Unix timestamp when countdown began
+  roundEndTime?: number;       // Unix timestamp when round ended
+  nextPhaseTime?: number;      // Scheduled time for next phase (unused)
 }
 
+/**
+ * Single round of gameplay
+ */
 export interface Round {
-  number: number;
-  targetEmoji: string;
-  emojiPositions: EmojiPosition[];
-  startTime: number;
-  endTime: number;
-  foundBy: { playerId: string; timestamp: number }[];
-  canvasBase64?: string; // Server-rendered canvas for client display
+  number: number;          // Round number (1-5)
+  targetEmoji: string;     // The emoji players must find
+  emojiPositions: EmojiPosition[]; // All emojis on the canvas
+  startTime: number;       // Unix timestamp when round started
+  endTime: number;         // Unix timestamp when round should end
+  foundBy: { playerId: string; timestamp: number }[]; // Who found it and when
+  canvasBase64?: string;   // Reserved for server-side rendering (unused)
 }
 
+/**
+ * Position data for a single emoji on the canvas
+ */
 export interface EmojiPosition {
-  emoji: string;
-  x: number;
-  y: number;
-  fontSize: number;
-  id: string;
+  emoji: string;           // The emoji character
+  x: number;               // Canvas X coordinate
+  y: number;               // Canvas Y coordinate
+  fontSize: number;        // Size in pixels
+  id: string;              // Unique identifier for click detection
 }
 
+/**
+ * Real-time game event messages
+ * Used for SSE broadcasting and client updates
+ */
 export interface GameMessage {
   type:
-    | 'playerJoined'
-    | 'playerLeft'
-    | 'gameStarted'
-    | 'roundStarted'
-    | 'roundEnded'
-    | 'emojiFound'
-    | 'gameEnded'
-    | 'lobbyUpdate'
-    | 'connected'
-    | 'gameReset'
-    | 'allPlayersFound'
-    | 'notEnoughPlayers'
-    | 'wrongEmoji';
-  data: any;
+    | 'playerJoined'      // New player entered lobby
+    | 'playerLeft'        // Player disconnected/left
+    | 'gameStarted'       // Game transitioned to countdown
+    | 'roundStarted'      // Round began (playing state)
+    | 'roundEnded'        // Round completed
+    | 'emojiFound'        // Player found target
+    | 'gameEnded'         // All rounds complete
+    | 'lobbyUpdate'       // General state update
+    | 'connected'         // SSE connection established
+    | 'gameReset'         // Game returned to waiting
+    | 'allPlayersFound'   // Everyone found target
+    | 'notEnoughPlayers'  // Cannot start with 1 player
+    | 'wrongEmoji';       // Player clicked wrong emoji
+  data: any;              // Event-specific payload
 }

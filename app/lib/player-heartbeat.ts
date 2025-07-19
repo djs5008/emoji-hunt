@@ -3,7 +3,35 @@ import { setLobby } from './upstash-storage';
 import { get, del, keys } from './upstash-redis';
 import { broadcastToLobby, SSE_EVENTS } from './sse-broadcast';
 
-// Check for disconnected players and clean them up
+/**
+ * Player Heartbeat Management
+ * 
+ * @description Monitors player connections via heartbeats and removes
+ * disconnected players from lobbies. Handles host reassignment and
+ * lobby cleanup when empty.
+ * 
+ * Heartbeat system:
+ * - Players send heartbeats every 2 seconds via SSE
+ * - Players considered disconnected after 5 seconds
+ * - Grace period for new players to establish connection
+ * - Automatic host reassignment if host disconnects
+ */
+
+/**
+ * Checks for and removes disconnected players from a lobby
+ * 
+ * @description Scans all players in a lobby and removes those without
+ * recent heartbeats. Handles host reassignment and lobby deletion.
+ * 
+ * @param {string} lobbyId - The lobby to check
+ * @param {string} forceRemove - Optional player ID to force remove
+ * 
+ * Cleanup process:
+ * 1. Check each player's last heartbeat
+ * 2. Remove players inactive for 5+ seconds
+ * 3. Reassign host if needed
+ * 4. Delete empty lobbies
+ */
 export async function checkDisconnectedPlayers(lobbyId: string, forceRemove?: string): Promise<void> {
   const lobby = await getLobby(lobbyId);
   
@@ -12,87 +40,90 @@ export async function checkDisconnectedPlayers(lobbyId: string, forceRemove?: st
   const now = Date.now();
   const disconnectedPlayers: string[] = [];
   
-  // If forceRemove is specified, add it to disconnected list immediately
+  // Handle forced removal (explicit leave)
   if (forceRemove && lobby.players.find(p => p.id === forceRemove)) {
     disconnectedPlayers.push(forceRemove);
   }
   
-  // Check each player's heartbeat
+  // Check each player's heartbeat status
   for (const player of lobby.players) {
-    // Skip if already force removed
+    // Skip if already marked for removal
     if (disconnectedPlayers.includes(player.id)) continue;
     
     const heartbeatKey = `player:${lobbyId}:${player.id}:heartbeat`;
     const lastHeartbeat = await get(heartbeatKey);
     
-    
     if (!lastHeartbeat) {
-      // For regular cleanup (not force remove), check join time
+      // No heartbeat found - check if player is new
       const joinTimeKey = `player:${lobbyId}:${player.id}:joinTime`;
       const joinTime = await get(joinTimeKey);
       
       if (!joinTime) {
-        // No join time recorded, player has been around for a while - remove them
+        // No join time = old player who lost connection
         disconnectedPlayers.push(player.id);
         continue;
       }
       
       const timeSinceJoin = now - parseInt(joinTime);
       
-      // Only consider disconnected if they joined more than 10 seconds ago (5 heartbeats)
-      // This gives time for page refreshes and initial connection
+      // Grace period for new players (10 seconds to establish connection)
       if (timeSinceJoin > 10000) {
         disconnectedPlayers.push(player.id);
       }
       continue;
     }
     
+    // Check heartbeat freshness
     const timeSinceHeartbeat = now - parseInt(lastHeartbeat);
     
-    // Consider disconnected after 5 seconds (2.5 missed heartbeats)
-    // Reduced grace period for faster cleanup
+    // Disconnect threshold: 5 seconds (allows 2.5 missed heartbeats)
     if (timeSinceHeartbeat > 5000) {
       disconnectedPlayers.push(player.id);
-      // Clean up the heartbeat key
       await del(heartbeatKey);
     }
   }
   
-  // Remove disconnected players
+  // Process disconnections if any found
   if (disconnectedPlayers.length > 0) {
+    // Remove from lobby
     lobby.players = lobby.players.filter(p => !disconnectedPlayers.includes(p.id));
     
-    // If host disconnected, assign new host
+    // Host reassignment logic
     if (disconnectedPlayers.includes(lobby.hostId) && lobby.players.length > 0) {
+      // Assign first remaining player as new host
       lobby.hostId = lobby.players[0].id;
       lobby.players[0].isHost = true;
     }
     
     await setLobby(lobby);
     
-    // Broadcast player left events and clean up Redis keys
+    // Notify and cleanup for each disconnected player
     for (const playerId of disconnectedPlayers) {
-      // Clean up all player-related keys
-      await del([`player:${lobbyId}:${playerId}:heartbeat`, `player:${lobbyId}:${playerId}:joinTime`]);
+      // Remove all player-specific Redis keys
+      await del([
+        `player:${lobbyId}:${playerId}:heartbeat`,
+        `player:${lobbyId}:${playerId}:joinTime`
+      ]);
       
+      // Broadcast departure to remaining players
       await broadcastToLobby(lobbyId, SSE_EVENTS.PLAYER_LEFT, {
         playerId,
         lobby,
       });
     }
     
-    // Check if lobby should be deleted (no players left)
+    // Empty lobby cleanup
     if (lobby.players.length === 0) {
-      // Clean up all lobby-related keys
+      // Delete main lobby data
       await del([`lobby:${lobbyId}`, `events:${lobbyId}`]);
       
-      // Clean up any remaining player keys
+      // Clean up any orphaned player keys
       const playerKeys = await keys(`player:${lobbyId}:*`);
       if (playerKeys.length > 0) {
         await del(playerKeys);
       }
       
-      // Clean up any lock keys
+      // Clean up distributed locks
       const lockKeys = await keys(`lobby:${lobbyId}:lock:*`);
       if (lockKeys.length > 0) {
         await del(lockKeys);

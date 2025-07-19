@@ -1,3 +1,13 @@
+/**
+ * Home Page Component
+ * 
+ * @description Landing page for the emoji hunt game. Provides options to:
+ * - Create a new lobby (become host)
+ * - Join an existing lobby with a code
+ * - Handle URL parameters for direct joins
+ * - Display support links (bug reports, donations)
+ */
+
 'use client';
 
 import { useState, useRef, useEffect, Suspense } from 'react';
@@ -5,18 +15,36 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import EmojiBackground from './components/EmojiBackground';
 import { setPlayerId, getPlayerId } from './lib/player-storage';
 
+/**
+ * Main home page content component
+ * 
+ * @description Handles the game's entry point with lobby creation and joining.
+ * Wrapped in Suspense boundary by the parent component.
+ */
 function HomePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  // UI state management
   const [mode, setMode] = useState<'home' | 'create' | 'join'>('home');
   const [nickname, setNickname] = useState('');
   const [lobbyCode, setLobbyCode] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
+  
+  // Animated drink emoji state for support button
   const [drinkIndex, setDrinkIndex] = useState(0);
   const drinks = ['☕️', '🍺', '🍵', '🥤', '🧋', '🍷', '🥛', '🧃'];
   
+  /**
+   * Creates a new game lobby
+   * 
+   * @description Handles lobby creation process:
+   * 1. Validates nickname
+   * 2. Sends creation request with existing player ID if available
+   * 3. Stores player ID and host token
+   * 4. Navigates to the new lobby
+   */
   const handleCreateLobby = async () => {
     if (!nickname.trim()) {
       setError('Please enter a nickname');
@@ -27,7 +55,7 @@ function HomePageContent() {
     setError(null);
     
     try {
-      // Get existing player ID if available
+      // Get existing player ID if available (for rejoin support)
       const existingPlayerId = getPlayerId();
       
       const res = await fetch('/api/lobby/create', {
@@ -45,7 +73,7 @@ function HomePageContent() {
         return;
       }
       
-      // Store player ID and host token
+      // Store player ID and host token for future use
       setPlayerId(data.playerId);
       sessionStorage.setItem(`host-${data.lobby.id}`, data.hostToken);
       
@@ -58,6 +86,17 @@ function HomePageContent() {
     }
   };
   
+  /**
+   * Joins an existing game lobby
+   * 
+   * @description Handles lobby joining process:
+   * 1. Validates nickname and lobby code
+   * 2. Sends join request with existing player ID if available
+   * 3. Stores/updates player ID
+   * 4. Navigates to the joined lobby
+   * 
+   * Note: Lobby codes are case-insensitive (converted to uppercase)
+   */
   const handleJoinLobby = async () => {
     if (!nickname.trim()) {
       setError('Please enter a nickname');
@@ -73,7 +112,7 @@ function HomePageContent() {
     setError(null);
     
     try {
-      // Get existing player ID if available
+      // Get existing player ID if available (for consistent identity)
       const existingPlayerId = getPlayerId();
       
       const res = await fetch('/api/lobby/join', {
@@ -104,6 +143,11 @@ function HomePageContent() {
     }
   };
 
+  /**
+   * Resets form to initial state
+   * 
+   * @description Clears all form fields and returns to home view
+   */
   const resetForm = () => {
     setMode('home');
     setNickname('');
@@ -111,7 +155,15 @@ function HomePageContent() {
     setError(null);
   };
   
-  // Handle URL parameters
+  /**
+   * Handles URL parameters for deep linking
+   * 
+   * @description Processes URL parameters:
+   * - ?join=CODE - Pre-fills join form with lobby code
+   * - ?error=lobby-not-found - Shows error message
+   * 
+   * Cleans up URL after processing to prevent stale parameters
+   */
   useEffect(() => {
     const joinCode = searchParams.get('join');
     const errorParam = searchParams.get('error');
@@ -132,7 +184,12 @@ function HomePageContent() {
     }
   }, [searchParams]);
   
-  // Auto-scroll to form when mode changes
+  /**
+   * Auto-scrolls to form when entering create/join mode
+   * 
+   * @description Ensures form is visible on mobile devices by scrolling
+   * to center it in the viewport. Small delay ensures DOM is ready.
+   */
   useEffect(() => {
     if (mode !== 'home' && formRef.current) {
       // Small delay to ensure the form is rendered
@@ -146,7 +203,12 @@ function HomePageContent() {
     }
   }, [mode]);
   
-  // Cycle through drinks
+  /**
+   * Animates drink emoji in support button
+   * 
+   * @description Cycles through different drink emojis every 2 seconds
+   * for visual interest in the "Buy me a drink" button
+   */
   useEffect(() => {
     const interval = setInterval(() => {
       setDrinkIndex((prev) => (prev + 1) % drinks.length);
@@ -155,6 +217,12 @@ function HomePageContent() {
     return () => clearInterval(interval);
   }, [drinks.length]);
   
+  /**
+   * Handles Enter key press in forms
+   * 
+   * @param {React.KeyboardEvent} e - Keyboard event
+   * @param {'create' | 'join'} action - Which form action to trigger
+   */
   const handleKeyPress = (e: React.KeyboardEvent, action: 'create' | 'join') => {
     if (e.key === 'Enter') {
       if (action === 'create') {
@@ -354,6 +422,12 @@ function HomePageContent() {
   );
 }
 
+/**
+ * Home page wrapper with Suspense boundary
+ * 
+ * @description Wraps the main content in Suspense to handle async operations
+ * like useSearchParams which requires Suspense in Next.js app router.
+ */
 export default function HomePage() {
   return (
     <Suspense fallback={<div className="h-full bg-gray-900 flex items-center justify-center"><p className="text-2xl text-gray-400">Loading...</p></div>}>

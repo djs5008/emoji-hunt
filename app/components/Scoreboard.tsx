@@ -2,15 +2,30 @@
 
 import { Player } from '@/app/types/game';
 
+/**
+ * Scoreboard Component - Displays player rankings and scores
+ * 
+ * @description Shows player scores after each round or at game end. Features
+ * animated rankings, round-specific scores, and special highlighting for winners.
+ * Responsive design adapts to mobile and desktop screens.
+ * 
+ * Visual features:
+ * - Medal emojis for top 3 players
+ * - Gradient backgrounds for winners
+ * - Round performance details (time, points)
+ * - DNF (Did Not Find) indicators
+ * - Play again / Main menu buttons for final scores
+ */
 interface ScoreboardProps {
-  players: Player[];
-  currentRound?: number;
-  isFinal?: boolean;
-  onPlayAgain?: () => void;
-  onMainMenu?: () => void;
+  players: Player[];           // All players with scores
+  currentRound?: number;       // Current round number (omit for final)
+  isFinal?: boolean;          // True for game end scoreboard
+  onPlayAgain?: () => void;   // Callback for play again (host only)
+  onMainMenu?: () => void;    // Callback for main menu navigation
 }
 
 export default function Scoreboard({ players, currentRound, isFinal, onPlayAgain, onMainMenu }: ScoreboardProps) {
+  // Sort players by score (highest first)
   const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
   
   return (
@@ -27,17 +42,19 @@ export default function Scoreboard({ players, currentRound, isFinal, onPlayAgain
         
         <div className="space-y-2 md:space-y-3">
           {sortedPlayers.map((player, index) => {
+            // Determine player status and styling
             const isWinner = index === 0 && isFinal;
             const isTop3 = index < 3;
             const roundScore = currentRound ? 
               player.roundScores.find(rs => rs.round === currentRound) : null;
             
+            // Visual indicators based on ranking
             const positionEmoji = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
             const bgGradient = isWinner 
-              ? 'from-yellow-600/30 to-amber-600/30 border-yellow-500/50' 
+              ? 'from-yellow-600/30 to-amber-600/30 border-yellow-500/50'  // Gold for winner
               : isTop3
-                ? 'from-indigo-600/20 to-purple-600/20 border-indigo-500/30'
-                : 'from-gray-700/30 to-gray-800/30 border-gray-600/30';
+                ? 'from-indigo-600/20 to-purple-600/20 border-indigo-500/30' // Special color for top 3
+                : 'from-gray-700/30 to-gray-800/30 border-gray-600/30';      // Default for others
             
             return (
               <div

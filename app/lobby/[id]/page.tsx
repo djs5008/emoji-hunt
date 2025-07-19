@@ -1,3 +1,17 @@
+/**
+ * Lobby Page Component
+ * 
+ * @description The main game page that handles:
+ * - Game state management (waiting, countdown, playing, scores)
+ * - Real-time updates via Server-Sent Events (SSE)
+ * - Player interactions (emoji clicking, starting games)
+ * - Host controls and permissions
+ * - Responsive layout for mobile and desktop
+ * 
+ * This is the most complex component in the application, managing
+ * the entire game lifecycle and real-time multiplayer interactions.
+ */
+
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
@@ -10,6 +24,13 @@ import { Lobby } from '@/app/types/game';
 import { SSEClient } from '@/app/lib/sse-client';
 import { getPlayerId } from '@/app/lib/player-storage';
 
+/**
+ * Main lobby/game page component
+ * 
+ * @description Manages the entire game experience from lobby waiting
+ * to gameplay and final scores. Handles real-time synchronization
+ * across all connected players.
+ */
 export default function LobbyPage() {
   const params = useParams();
   const router = useRouter();

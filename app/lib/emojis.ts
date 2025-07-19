@@ -1,4 +1,12 @@
-// Common, well-supported emojis that render correctly across platforms
+/**
+ * Emoji Library - Curated collection of cross-platform compatible emojis
+ * 
+ * @description Provides a carefully selected set of emojis that render consistently
+ * across different operating systems and browsers. Includes utility functions for
+ * random selection and scoring.
+ */
+
+// Extensive collection of well-supported emojis organized by category
 const commonEmojis = [
   // Faces & Emotions
   '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇',
@@ -124,37 +132,64 @@ const commonEmojis = [
 ];
 
 
+/**
+ * Generates a random selection of emojis for gameplay
+ * 
+ * @description Selects random emojis from the collection, ensuring variety.
+ * If more emojis are needed than available, allows duplicates but avoids
+ * consecutive repetition for better visual distribution.
+ * 
+ * @param {number} count - Number of emojis to generate
+ * @returns {string[]} Array of emoji characters
+ * 
+ * Algorithm:
+ * 1. If count <= available: Return unique random emojis
+ * 2. If count > available: Use all emojis once, then add duplicates carefully
+ * 3. Final shuffle ensures random distribution
+ */
 export function getRandomEmojis(count: number): string[] {
   const result: string[] = [];
   const usedEmojis = new Set<string>();
   
-  // If we need more emojis than available, we'll need to allow repeats eventually
+  // Handle case where we need more emojis than available
   if (count > commonEmojis.length) {
-    // First, add each emoji once (no duplicates)
+    // Step 1: Add each emoji once
     const shuffled = [...commonEmojis].sort(() => Math.random() - 0.5);
     for (const emoji of shuffled) {
       result.push(emoji);
       usedEmojis.add(emoji);
     }
     
-    // Then add repeats only if needed, avoiding consecutive duplicates
+    // Step 2: Add duplicates, avoiding consecutive repeats
     while (result.length < count) {
       const randomEmoji = commonEmojis[Math.floor(Math.random() * commonEmojis.length)];
-      // Avoid placing the same emoji consecutively where possible
+      // Prevent consecutive duplicates unless impossible
       if (result[result.length - 1] !== randomEmoji || usedEmojis.size === 1) {
         result.push(randomEmoji);
       }
     }
     
-    // Final shuffle to randomize positions
+    // Step 3: Final shuffle for random distribution
     return result.sort(() => Math.random() - 0.5);
   }
   
-  // If we have enough unique emojis, just return unique ones
+  // Simple case: return unique random emojis
   const shuffled = [...commonEmojis].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, count);
 }
 
+/**
+ * Calculates score based on time taken to find emoji
+ * 
+ * @description Legacy scoring function using time-based tiers.
+ * Note: The game now uses a more sophisticated scoring system
+ * in game-engine.ts that considers both time and order.
+ * 
+ * @param {number} timeToFind - Time in seconds
+ * @returns {number} Score points (0-100)
+ * 
+ * @deprecated Use calculatePoints in game-engine.ts instead
+ */
 export function calculateScore(timeToFind: number): number {
   if (timeToFind <= 1) return 100;
   if (timeToFind <= 10) return 90;

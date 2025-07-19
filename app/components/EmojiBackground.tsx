@@ -2,6 +2,22 @@
 
 import { useEffect, useRef } from 'react';
 
+/**
+ * EmojiBackground Component - Animated decorative background
+ * 
+ * @description Creates a falling emoji particle effect for visual ambiance.
+ * Emojis fall from top to bottom with slight horizontal drift, creating a
+ * playful atmosphere. Performance-optimized with Canvas API and GPU acceleration.
+ * 
+ * Features:
+ * - 100+ different emoji types
+ * - Responsive particle density based on screen size
+ * - Smooth 60fps animation with delta time
+ * - Gradual fade-out at bottom
+ * - GPU acceleration for performance
+ */
+
+// Diverse collection of emojis for variety
 const BACKGROUND_EMOJIS = [
   '😀', '😎', '🤩', '🥳', '😍', '🤔', '😴', '🤯', '🥺', '😈',
   '👻', '👽', '🤖', '💩', '🐶', '🐱', '🐭', '🐹', '🐰', '🦊',
@@ -19,15 +35,16 @@ const BACKGROUND_EMOJIS = [
   '🎲', '🎸', '🎺', '🎷', '🥁', '🎹', '🎨', '🎭', '🎪', '🎬'
 ];
 
+// Particle properties for physics simulation
 interface EmojiParticle {
-  id: number;
-  emoji: string;
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  size: number;
-  opacity: number;
+  id: number;      // Unique identifier
+  emoji: string;   // The emoji character
+  x: number;       // Horizontal position
+  y: number;       // Vertical position
+  vx: number;      // Horizontal velocity
+  vy: number;      // Vertical velocity (fall speed)
+  size: number;    // Font size in pixels
+  opacity: number; // Transparency (0-1)
 }
 
 export default function EmojiBackground() {
@@ -76,56 +93,57 @@ export default function EmojiBackground() {
       };
     };
 
-    // Animation loop
+    /**
+     * Main animation loop using requestAnimationFrame
+     * Implements delta-time based movement for consistent speed regardless of framerate
+     */
     const animate = (currentTime: number) => {
       const deltaTime = currentTime - lastTimeRef.current;
       
-      // Cap delta time to prevent large jumps (e.g., when tab is backgrounded)
+      // Cap delta to prevent huge jumps when tab is backgrounded
       const cappedDeltaTime = Math.min(deltaTime, 50);
       
-      // Only update if enough time has passed (targeting ~60fps)
+      // Skip frames to maintain 60fps target
       if (cappedDeltaTime < 16) {
         animationFrameRef.current = requestAnimationFrame(animate);
         return;
       }
       
       lastTimeRef.current = currentTime;
-      
-      // Convert to seconds for easier calculation
       const deltaSeconds = cappedDeltaTime / 1000;
 
-      // Clear canvas
+      // Clear for next frame
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Set text properties once for better performance
+      // Set text rendering properties once per frame
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      // Update and draw particles
+      // Update and render each particle
       particlesRef.current = particlesRef.current.filter(particle => {
-        // Update position based on time elapsed
+        // Physics update (60 multiplier normalizes to pixels/second)
         particle.x += particle.vx * deltaSeconds * 60;
         particle.y += particle.vy * deltaSeconds * 60;
 
-        // Simple fade at bottom
+        // Fade out near bottom for smooth disappearance
         if (particle.y > canvas.height - 150) {
           particle.opacity = Math.max(0.1, (canvas.height - particle.y) / 150 * 0.3);
         }
 
-        // Draw particle (no rotation)
+        // Render emoji
         ctx.globalAlpha = particle.opacity;
         ctx.font = `${particle.size}px sans-serif`;
         ctx.fillText(particle.emoji, particle.x, particle.y);
 
-        // Remove if out of bounds
+        // Keep particle if still visible
         return particle.y < canvas.height + particle.size;
       });
 
-      // Add new particles occasionally to maintain some density
+      // Maintain particle density
       const targetParticleCount = Math.floor((canvas.width * canvas.height) / 50000);
       const currentParticleCount = particlesRef.current.length;
       
-      // Add particles more gradually
+      // Spawn new particles occasionally
       if (currentParticleCount < targetParticleCount && Math.random() < 0.03) {
         particlesRef.current.push(createParticle(canvas.width, canvas.height));
       }

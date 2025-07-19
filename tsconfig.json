@@ -1,26 +1,47 @@
 {
+  // TypeScript compiler configuration for emoji-hunt project
   "compilerOptions": {
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noEmit": true,
-    "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "jsx": "preserve",
-    "incremental": true,
+    // JavaScript environment libraries available
+    "lib": ["dom", "dom.iterable", "esnext"], // DOM APIs + latest ECMAScript features
+    
+    // Module resolution and JavaScript handling
+    "allowJs": true,              // Allow importing JavaScript files
+    "skipLibCheck": true,         // Skip type checking of declaration files for faster builds
+    "strict": true,               // Enable all strict type checking options
+    "noEmit": true,              // Don't emit output (Next.js handles this)
+    "esModuleInterop": true,      // Enable interop between CommonJS and ES modules
+    "module": "esnext",          // Use latest module syntax
+    "moduleResolution": "bundler", // Module resolution for bundlers
+    "resolveJsonModule": true,    // Allow importing JSON files
+    "isolatedModules": true,      // Ensure files can be transpiled independently
+    
+    // JSX configuration
+    "jsx": "preserve",            // Preserve JSX for Next.js to transform
+    
+    // Build optimization
+    "incremental": true,          // Enable incremental compilation for faster rebuilds
+    
+    // Next.js TypeScript plugin
     "plugins": [
       {
-        "name": "next"
+        "name": "next"            // Provides Next.js-specific type checking
       }
     ],
+    
+    // Path mapping for absolute imports
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"]              // Map @/ to project root for cleaner imports
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  
+  // Files to include in compilation
+  "include": [
+    "next-env.d.ts",              // Next.js environment types
+    "**/*.ts",                    // All TypeScript files
+    "**/*.tsx",                   // All TypeScript React files
+    ".next/types/**/*.ts"         // Next.js generated types
+  ],
+  
+  // Files to exclude from compilation
+  "exclude": ["node_modules"]     // Don't compile dependencies
 }

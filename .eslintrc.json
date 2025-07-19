@@ -1,3 +1,6 @@
 {
+    // ESLint configuration for the emoji-hunt project
+    // Uses Next.js's recommended ESLint rules with Core Web Vitals checks
+    // This configuration ensures code quality and performance best practices
     "extends": "next/core-web-vitals"
 }

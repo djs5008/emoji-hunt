@@ -1,8 +1,17 @@
 {
-  "buildCommand": "next build",
-  "outputDirectory": ".next",
-  "devCommand": "next dev",
-  "installCommand": "npm install",
-  "framework": "nextjs",
-  "regions": ["iad1"]
+  // Vercel deployment configuration for emoji-hunt
+  // Specifies build settings and deployment region
+  
+  // Build configuration
+  "buildCommand": "next build",        // Command to build the Next.js app
+  "outputDirectory": ".next",          // Next.js build output directory
+  "devCommand": "next dev",            // Local development command
+  "installCommand": "npm install",     // Dependency installation command
+  
+  // Framework detection
+  "framework": "nextjs",               // Explicitly specify Next.js framework
+  
+  // Deployment region
+  "regions": ["iad1"]                  // Deploy to US East (Washington D.C.)
+                                      // Single region for low-latency game state
 }
