@@ -75,12 +75,14 @@ function HomePageContent() {
         } catch {
           setError(`Server error: ${res.status} ${res.statusText}`);
         }
+        setIsProcessing(false);
         return;
       }
       
       const data = await res.json();
       if (data.error) {
         setError(data.error);
+        setIsProcessing(false);
         return;
       }
       
@@ -102,7 +104,6 @@ function HomePageContent() {
       } else {
         setError('Failed to create lobby. Please try again.');
       }
-    } finally {
       setIsProcessing(false);
     }
   };
@@ -165,12 +166,14 @@ function HomePageContent() {
         } catch {
           setError(`Server error: ${res.status} ${res.statusText}`);
         }
+        setIsProcessing(false);
         return;
       }
       
       const data = await res.json();
       if (data.error) {
         setError(data.error);
+        setIsProcessing(false);
         return;
       }
       
@@ -186,7 +189,6 @@ function HomePageContent() {
       } else {
         setError('Failed to join lobby. Please try again.');
       }
-    } finally {
       setIsProcessing(false);
     }
   };
@@ -303,11 +305,12 @@ function HomePageContent() {
           <div className="space-y-4">
             <button
               onClick={() => setMode('create')}
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-4 px-6 rounded-xl transition-all transform hover:scale-[1.02] shadow-lg"
+              disabled={isProcessing}
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-bold py-4 px-6 rounded-xl transition-all transform hover:scale-[1.02] disabled:hover:scale-100 shadow-lg"
             >
               <div className="flex items-center justify-center gap-3">
                 <span className="text-2xl">🏠</span>
-                <span className="text-lg">Create New Lobby</span>
+                <span className="text-lg">{isProcessing ? 'Creating...' : 'Create New Lobby'}</span>
               </div>
             </button>
             
