@@ -1,4 +1,4 @@
-import { getUpstashRedis } from './upstash-redis';
+import { getIoRedis } from './ioredis-client';
 import { logger } from './logger';
 
 /**
@@ -76,7 +76,7 @@ export const RATE_LIMITS = {
  */
 export class RateLimiter {
   private config: RateLimitConfig;
-  private redis = getUpstashRedis();
+  private redis = getIoRedis();
   
   constructor(config: RateLimitConfig) {
     this.config = config;
@@ -112,15 +112,15 @@ export class RateLimiter {
       const results = await pipeline.exec();
       
       // Extract the count from pipeline results
-      // Upstash returns results in a different format than ioredis
-      const currentCount = Number(results?.[1]) || 0;
+      // ioredis returns results as [error, result] tuples
+      const currentCount = results?.[1]?.[1] ? Number(results[1][1]) : 0;
       
       // Check if limit would be exceeded
       const allowed = currentCount < this.config.maxRequests;
       
       if (allowed) {
         // Add current request to the sorted set
-        await this.redis.zadd(key, { score: now, member: `${now}-${Math.random()}` });
+        await this.redis.zadd(key, now, `${now}-${Math.random()}`);
         
         // Set expiration on the key
         await this.redis.expire(key, this.config.windowSeconds);

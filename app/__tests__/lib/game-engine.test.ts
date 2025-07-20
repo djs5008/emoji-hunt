@@ -1,12 +1,12 @@
 import { startGame, resetGame, handleEmojiClick } from '@/app/lib/game-engine';
-import { getLobby } from '@/app/lib/game-state-async';
-import { setLobby } from '@/app/lib/upstash-storage';
+import { getLobby } from '@/app/lib/ioredis-storage';
+import { setLobby } from '@/app/lib/ioredis-storage';
 import { broadcastToLobby, SSE_EVENTS } from '@/app/lib/sse-broadcast';
 import { checkAndEndRound } from '@/app/lib/game-state-transitions';
 import { Lobby } from '@/app/types/game';
 
 // Mock dependencies
-jest.mock('@/app/lib/upstash-storage');
+jest.mock('@/app/lib/ioredis-storage');
 jest.mock('@/app/lib/sse-broadcast');
 jest.mock('@/app/lib/game-state-transitions');
 

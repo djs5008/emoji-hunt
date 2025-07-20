@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getLobby } from '@/app/lib/game-state-async';
+import { getLobby } from '@/app/lib/ioredis-storage';
 import { SessionManager } from '@/app/lib/player-session';
 import { logger } from '@/app/lib/logger';
 

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { del } from '@/app/lib/upstash-redis';
+import { del } from '@/app/lib/ioredis-client';
 import { checkDisconnectedPlayers } from '@/app/lib/player-heartbeat';
 import { SessionManager } from '@/app/lib/player-session';
 import { rateLimit } from '@/app/lib/rate-limit-middleware';
 import { logger } from '@/app/lib/logger';
-import { getLobby } from '@/app/lib/game-state-async';
+import { getLobby } from '@/app/lib/ioredis-storage';
 
 /**
  * Removes a player from a lobby
@@ -70,6 +70,8 @@ export const POST = rateLimit('STANDARD')(async function handleLeaveLobby(
       playerId,
       isExplicitLeave,
       useGracePeriod,
+      contentType,
+      method: request.method,
       userAgent: request.headers.get('user-agent'),
     });
     

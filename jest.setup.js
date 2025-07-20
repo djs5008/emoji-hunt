@@ -2,6 +2,9 @@
 import '@testing-library/jest-dom'
 import { TextEncoder, TextDecoder } from 'util'
 
+// Ensure tests run in test environment, not production
+process.env.NODE_ENV = 'test'
+
 // Only mock Next.js navigation when necessary - tests should explicitly mock when needed
 // Set test environment variables
 process.env.NEXT_PUBLIC_UPSTASH_REDIS_REST_URL = 'https://test-redis.upstash.io'
@@ -142,15 +145,29 @@ afterEach(() => {
   jest.clearAllMocks()
 })
 
-// Mock upstash-storage module
-jest.mock('@/app/lib/upstash-storage', () => ({
+// Mock ioredis-storage module
+jest.mock('@/app/lib/ioredis-storage', () => ({
   getLobby: jest.fn(),
   setLobby: jest.fn(),
-  deleteLobby: jest.fn(),
-  getPlayer: jest.fn(),
-  setPlayer: jest.fn(),
-  deletePlayer: jest.fn(),
-  getLobbyPlayers: jest.fn(),
-  deleteAllLobbyData: jest.fn(),
+  __esModule: true,
+}))
+
+// Mock ioredis-client module
+jest.mock('@/app/lib/ioredis-client', () => ({
+  getIoRedis: jest.fn(() => ({
+    setex: jest.fn(),
+    get: jest.fn(),
+    del: jest.fn(),
+    rpush: jest.fn(),
+    lrange: jest.fn(),
+    quit: jest.fn(),
+    keys: jest.fn(),
+  })),
+  setex: jest.fn(),
+  get: jest.fn(),
+  del: jest.fn(),
+  rpush: jest.fn(),
+  lrange: jest.fn(),
+  quit: jest.fn(),
   __esModule: true,
 }))

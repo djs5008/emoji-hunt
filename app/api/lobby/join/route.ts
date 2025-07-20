@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { joinLobby } from '@/app/lib/game-state-async';
 import { broadcastToLobby, SSE_EVENTS } from '@/app/lib/sse-broadcast';
-import { setex } from '@/app/lib/upstash-redis';
+import { setex } from '@/app/lib/ioredis-client';
 import { SessionManager } from '@/app/lib/player-session';
 import { withRateLimitedRoute } from '@/app/lib/rate-limit-middleware';
 import { logger } from '@/app/lib/logger';

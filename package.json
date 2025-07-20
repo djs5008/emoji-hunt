@@ -4,17 +4,19 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run test:ci && next build",
+    "build": "npm test && next build",
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "test:ci": "NODE_ENV=development jest --ci --coverage --maxWorkers=2 --silent > /dev/null 2>&1 && echo 'All tests passed' || (NODE_ENV=development jest --ci --maxWorkers=2 --verbose && exit 1)"
+    "test:ci": "NODE_ENV=development jest --ci --coverage --maxWorkers=2 --silent > /dev/null 2>&1 && echo 'All tests passed' || (NODE_ENV=development jest --ci --maxWorkers=2 --verbose && exit 1)",
+    "build:skiptest": "next build"
   },
   "dependencies": {
     "@upstash/redis": "^1.35.1",
     "bad-words": "^4.0.0",
+    "ioredis": "^5.6.1",
     "nanoid": "^3.3.11",
     "next": "14.2.5",
     "react": "^18.3.1",

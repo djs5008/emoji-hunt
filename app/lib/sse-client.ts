@@ -108,14 +108,7 @@ export class SSEClient {
     logger.info('SSE Client: Establishing connection', { url });
     this.eventSource = new EventSource(url);
     
-    // Set up proactive reconnection before 5-minute timeout (reconnect at 4.5 minutes)
-    // This prevents the server from closing the connection due to inactivity
-    this.connectionTimer = setTimeout(() => {
-      logger.info('SSE: Proactive reconnection to prevent timeout');
-      this.isIntentionalReconnect = true;
-      this.eventSource?.close();
-      this.establishConnection();
-    }, 4.5 * 60 * 1000); // 4.5 minutes
+    // No longer need client-side timer since server will send reconnect event
 
     this.eventSource.addEventListener('connected', (event) => {
       logger.info('SSE Client: Connected to SSE', { data: event.data });
@@ -188,6 +181,15 @@ export class SSEClient {
     this.eventSource.addEventListener('heartbeat', (event) => {
       const timestamp = parseInt(event.data);
       this.handlers.onHeartbeat?.(timestamp);
+    });
+
+    // Handle server-initiated reconnection (for 1-minute timeout)
+    this.eventSource.addEventListener('reconnect', (event) => {
+      logger.info('SSE Client: Server requested reconnection', { data: event.data });
+      this.isIntentionalReconnect = true;
+      this.eventSource?.close();
+      // Reconnect immediately to minimize downtime
+      this.establishConnection();
     });
 
     /**

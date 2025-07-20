@@ -1,13 +1,13 @@
 import { cookies } from 'next/headers';
 import { SessionManager, PlayerSession } from '@/app/lib/player-session';
-import { getUpstashRedis } from '@/app/lib/upstash-redis';
+import { getIoRedis } from '@/app/lib/ioredis-client';
 
 // Mock dependencies
 jest.mock('next/headers', () => ({
   cookies: jest.fn(),
 }));
 
-jest.mock('@/app/lib/upstash-redis');
+jest.mock('@/app/lib/ioredis-client');
 
 describe('SessionManager', () => {
   let mockCookies: any;
@@ -30,7 +30,7 @@ describe('SessionManager', () => {
       setex: jest.fn(),
       del: jest.fn(),
     };
-    (getUpstashRedis as jest.Mock).mockReturnValue(mockRedis);
+    (getIoRedis as jest.Mock).mockReturnValue(mockRedis);
   });
 
   describe('generateSessionToken', () => {

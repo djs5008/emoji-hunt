@@ -6,7 +6,7 @@ jest.mock('@/app/lib/game-state-async', () => ({
   createLobby: jest.fn(),
 }));
 
-jest.mock('@/app/lib/upstash-redis', () => ({
+jest.mock('@/app/lib/ioredis-client', () => ({
   setex: jest.fn(),
 }));
 
@@ -35,7 +35,7 @@ jest.mock('@/app/lib/rate-limit-middleware', () => ({
 }));
 
 const { createLobby } = require('@/app/lib/game-state-async');
-const { setex } = require('@/app/lib/upstash-redis');
+const { setex } = require('@/app/lib/ioredis-client');
 const { nanoid } = require('nanoid');
 const { SessionManager } = require('@/app/lib/player-session');
 

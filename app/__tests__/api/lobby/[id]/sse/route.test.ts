@@ -1,13 +1,13 @@
 import { GET } from '@/app/api/lobby/[id]/sse/route';
 import { NextRequest } from 'next/server';
-import { getLobby } from '@/app/lib/game-state-async';
-import { setex, del, lrange, rpush } from '@/app/lib/upstash-redis';
+import { getLobby } from '@/app/lib/ioredis-storage';
+import { setex, del, lrange, rpush } from '@/app/lib/ioredis-client';
 import { checkDisconnectedPlayers } from '@/app/lib/player-heartbeat';
 import { SessionManager } from '@/app/lib/player-session';
 
 // Mock dependencies
-jest.mock('@/app/lib/game-state-async');
-jest.mock('@/app/lib/upstash-redis');
+jest.mock('@/app/lib/ioredis-storage');
+jest.mock('@/app/lib/ioredis-client');
 jest.mock('@/app/lib/player-heartbeat');
 jest.mock('@/app/lib/player-session');
 
@@ -106,6 +106,8 @@ describe('SSE Route', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Note: We use real timers for SSE tests because ReadableStream
+    // doesn't work well with fake timers in Jest
     
     // Mock lobby data
     mockLobby = {
@@ -144,6 +146,10 @@ describe('SSE Route', () => {
     (del as jest.Mock).mockResolvedValue(1);
     (rpush as jest.Mock).mockResolvedValue(1);
     (checkDisconnectedPlayers as jest.Mock).mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
   describe('Authentication and Authorization', () => {
@@ -270,8 +276,9 @@ describe('SSE Route', () => {
       
       const response = await GET(mockRequest, { params: { id: 'test-lobby' } });
       
-      // Wait for async initialization to complete
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Wait for polling interval to trigger (1s for 'waiting' state)
+      // Note: Using real timers because SSE ReadableStream doesn't work with fake timers
+      await new Promise(resolve => setTimeout(resolve, 1100));
       
       // Redis calls happen in the polling interval, so they should be called
       expect(lrange).toHaveBeenCalledWith('lobby:test-lobby:events', 0, -1);
@@ -293,8 +300,9 @@ describe('SSE Route', () => {
       
       const response = await GET(mockRequest, { params: { id: 'test-lobby' } });
       
-      // Wait for event polling to trigger
-      await new Promise(resolve => setTimeout(resolve, 250));
+      // Wait for polling interval to trigger (1s for 'waiting' state)
+      // Note: Using real timers because SSE ReadableStream doesn't work with fake timers
+      await new Promise(resolve => setTimeout(resolve, 1100));
       
       // Verify that event polling is set up and called
       expect(lrange).toHaveBeenCalledWith('lobby:test-lobby:events', 0, -1);

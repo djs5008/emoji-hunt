@@ -1,13 +1,13 @@
 import { POST } from '@/app/api/lobby/rejoin/route';
 import { NextRequest } from 'next/server';
-import { getLobby } from '@/app/lib/game-state-async';
+import { getLobby } from '@/app/lib/ioredis-storage';
 import { SessionManager } from '@/app/lib/player-session';
-import { setex } from '@/app/lib/upstash-redis';
+import { setex } from '@/app/lib/ioredis-client';
 
 // Mock dependencies
 jest.mock('@/app/lib/game-state-async');
 jest.mock('@/app/lib/player-session');
-jest.mock('@/app/lib/upstash-redis');
+jest.mock('@/app/lib/ioredis-client');
 
 describe('Lobby Rejoin Route', () => {
   let mockLobby: any;

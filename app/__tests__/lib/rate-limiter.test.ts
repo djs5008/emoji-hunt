@@ -1,9 +1,9 @@
 import { RateLimiter, withRateLimit, addRateLimitHeaders, RATE_LIMITS } from '@/app/lib/rate-limiter';
-import { getUpstashRedis } from '@/app/lib/upstash-redis';
+import { getIoRedis } from '@/app/lib/ioredis-client';
 import { NextResponse } from 'next/server';
 
 // Mock dependencies
-jest.mock('@/app/lib/upstash-redis');
+jest.mock('@/app/lib/ioredis-client');
 
 describe('RateLimiter', () => {
   let mockRedis: any;
@@ -26,12 +26,16 @@ describe('RateLimiter', () => {
       expire: jest.fn(),
       del: jest.fn(),
     };
-    (getUpstashRedis as jest.Mock).mockReturnValue(mockRedis);
+    (getIoRedis as jest.Mock).mockReturnValue(mockRedis);
   });
 
   describe('checkLimit', () => {
     it('should allow first request', async () => {
-      mockPipeline.exec.mockResolvedValue([null, 0]); // No existing requests
+      // ioredis pipeline returns [[error, result], [error, result]]
+      mockPipeline.exec.mockResolvedValue([
+        [null, 0], // zremrangebyscore result
+        [null, 0]  // zcount result - no existing requests
+      ]);
       mockRedis.zadd.mockResolvedValue(1);
       mockRedis.expire.mockResolvedValue(1);
       
@@ -47,7 +51,8 @@ describe('RateLimiter', () => {
       
       expect(mockRedis.zadd).toHaveBeenCalledWith(
         'ratelimit:/api/test:session123',
-        expect.objectContaining({ score: expect.any(Number), member: expect.any(String) })
+        expect.any(Number), // score (timestamp)
+        expect.any(String)  // member
       );
     });
 
@@ -55,23 +60,23 @@ describe('RateLimiter', () => {
       const limiter = new RateLimiter({ maxRequests: 5, windowSeconds: 10 });
       
       // First request
-      mockPipeline.exec.mockResolvedValue([null, 0]);
+      mockPipeline.exec.mockResolvedValue([[null, 0], [null, 0]]);
       const result1 = await limiter.checkLimit('session123', '/api/test');
       expect(result1.remaining).toBe(4);
       
       // Second request
-      mockPipeline.exec.mockResolvedValue([null, 1]);
+      mockPipeline.exec.mockResolvedValue([[null, 0], [null, 1]]);
       const result2 = await limiter.checkLimit('session123', '/api/test');
       expect(result2.remaining).toBe(3);
       
       // Third request
-      mockPipeline.exec.mockResolvedValue([null, 2]);
+      mockPipeline.exec.mockResolvedValue([[null, 0], [null, 2]]);
       const result3 = await limiter.checkLimit('session123', '/api/test');
       expect(result3.remaining).toBe(2);
     });
 
     it('should block when limit exceeded', async () => {
-      mockPipeline.exec.mockResolvedValue([null, 5]); // Already at limit
+      mockPipeline.exec.mockResolvedValue([[null, 0], [null, 5]]); // Already at limit
       
       const limiter = new RateLimiter({ maxRequests: 5, windowSeconds: 10 });
       const result = await limiter.checkLimit('session123', '/api/test');
@@ -85,12 +90,13 @@ describe('RateLimiter', () => {
     it('should handle different sessions independently', async () => {
       const limiter = new RateLimiter({ maxRequests: 5, windowSeconds: 10 });
       
-      mockPipeline.exec.mockResolvedValue([null, 0]);
+      mockPipeline.exec.mockResolvedValue([[null, 0], [null, 0]]);
       await limiter.checkLimit('session123', '/api/test');
       
       expect(mockRedis.zadd).toHaveBeenCalledWith(
         'ratelimit:/api/test:session123',
-        expect.any(Object)
+        expect.any(Number),
+        expect.any(String)
       );
       
       mockRedis.zadd.mockClear();
@@ -99,19 +105,21 @@ describe('RateLimiter', () => {
       
       expect(mockRedis.zadd).toHaveBeenCalledWith(
         'ratelimit:/api/test:session456',
-        expect.any(Object)
+        expect.any(Number),
+        expect.any(String)
       );
     });
 
     it('should handle different endpoints independently', async () => {
       const limiter = new RateLimiter({ maxRequests: 5, windowSeconds: 10 });
       
-      mockPipeline.exec.mockResolvedValue([null, 0]);
+      mockPipeline.exec.mockResolvedValue([[null, 0], [null, 0]]);
       await limiter.checkLimit('session123', '/api/test1');
       
       expect(mockRedis.zadd).toHaveBeenCalledWith(
         'ratelimit:/api/test1:session123',
-        expect.any(Object)
+        expect.any(Number),
+        expect.any(String)
       );
       
       mockRedis.zadd.mockClear();
@@ -120,7 +128,8 @@ describe('RateLimiter', () => {
       
       expect(mockRedis.zadd).toHaveBeenCalledWith(
         'ratelimit:/api/test2:session123',
-        expect.any(Object)
+        expect.any(Number),
+        expect.any(String)
       );
     });
 
@@ -150,7 +159,7 @@ describe('RateLimiter', () => {
 
   describe('withRateLimit', () => {
     it('should allow request when under limit', async () => {
-      mockPipeline.exec.mockResolvedValue([null, 0]);
+      mockPipeline.exec.mockResolvedValue([[null, 0], [null, 0]]);
       mockRedis.zadd.mockResolvedValue(1);
       
       const result = await withRateLimit(
@@ -164,7 +173,7 @@ describe('RateLimiter', () => {
     });
 
     it('should block request when over limit', async () => {
-      mockPipeline.exec.mockResolvedValue([null, 5]);
+      mockPipeline.exec.mockResolvedValue([[null, 0], [null, 5]]);
       
       const result = await withRateLimit(
         'session123',
@@ -177,7 +186,7 @@ describe('RateLimiter', () => {
     });
 
     it('should use predefined rate limits', async () => {
-      mockPipeline.exec.mockResolvedValue([null, 0]);
+      mockPipeline.exec.mockResolvedValue([[null, 0], [null, 0]]);
       
       const result = await withRateLimit(
         'session123',

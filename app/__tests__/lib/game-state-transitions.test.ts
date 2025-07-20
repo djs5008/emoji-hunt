@@ -6,16 +6,17 @@ import {
   preloadRound,
   resetGame 
 } from '@/app/lib/game-state-transitions';
-import { getLobby, generateRound } from '@/app/lib/game-state-async';
-import { setLobby } from '@/app/lib/upstash-storage';
-import { getUpstashRedis } from '@/app/lib/upstash-redis';
+import { generateRound } from '@/app/lib/game-state-async';
+import { getLobby } from '@/app/lib/ioredis-storage';
+import { setLobby } from '@/app/lib/ioredis-storage';
+import { getIoRedis } from '@/app/lib/ioredis-client';
 import { broadcastToLobby } from '@/app/lib/sse-broadcast';
 import { Lobby, GameState } from '@/app/types/game';
 
 // Mock dependencies
 jest.mock('@/app/lib/game-state-async');
-jest.mock('@/app/lib/upstash-storage');
-jest.mock('@/app/lib/upstash-redis');
+jest.mock('@/app/lib/ioredis-storage');
+jest.mock('@/app/lib/ioredis-client');
 jest.mock('@/app/lib/sse-broadcast');
 
 describe('Game State Transitions', () => {
@@ -31,7 +32,7 @@ describe('Game State Transitions', () => {
       del: jest.fn(),
       get: jest.fn(),
     };
-    (getUpstashRedis as jest.Mock).mockReturnValue(mockRedis);
+    (getIoRedis as jest.Mock).mockReturnValue(mockRedis);
     
     // Mock default lobby
     mockLobby = {

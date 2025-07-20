@@ -2,7 +2,7 @@ import { createLobby } from '@/app/lib/game-state-async';
 import { Filter } from 'bad-words';
 
 // Mock the upstash-storage module
-jest.mock('@/app/lib/upstash-storage', () => ({
+jest.mock('@/app/lib/ioredis-storage', () => ({
   setLobby: jest.fn(),
   getLobby: jest.fn(),
 }));

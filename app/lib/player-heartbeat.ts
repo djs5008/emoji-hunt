@@ -1,8 +1,8 @@
-import { getLobby } from './game-state-async';
-import { setLobby } from './upstash-storage';
-import { get, del, keys } from './upstash-redis';
+import { setLobby, getLobby } from './ioredis-storage';
+import { get, del, keys } from './ioredis-client';
 import { broadcastToLobby, SSE_EVENTS } from './sse-broadcast';
 import { logger } from './logger';
+import { HEARTBEAT } from './redis-optimization';
 
 /**
  * Player Heartbeat Management
@@ -80,9 +80,8 @@ export async function checkDisconnectedPlayers(lobbyId: string, forceRemove?: st
     // Check heartbeat freshness
     const timeSinceHeartbeat = now - parseInt(lastHeartbeat);
     
-    // Disconnect threshold: 3 seconds (allows 1.5 missed heartbeats)
-    // This provides faster disconnection detection while still allowing for network hiccups
-    if (timeSinceHeartbeat > 3000) {
+    // Disconnect threshold based on optimization config
+    if (timeSinceHeartbeat > HEARTBEAT.TIMEOUT) {
       disconnectedPlayers.push(player.id);
       await del(heartbeatKey);
     }

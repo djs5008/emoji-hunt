@@ -1,6 +1,4 @@
-import { Lobby } from '@/app/types/game';
-import { getLobby } from './game-state-async';
-import { setLobby } from './upstash-storage';
+import { setLobby, getLobby } from './ioredis-storage';
 import { broadcastToLobby, SSE_EVENTS } from './sse-broadcast';
 import { checkAndEndRound } from './game-state-transitions';
 

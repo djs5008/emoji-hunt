@@ -1,4 +1,4 @@
-import { rpush, expire } from './upstash-redis';
+import { rpush, expire } from './ioredis-client';
 import { logger } from './logger';
 
 /**

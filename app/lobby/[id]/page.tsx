@@ -845,9 +845,6 @@ export default function LobbyPage() {
       sseClient.disconnect();
       sseClientRef.current = null;
       
-      // Don't send leave request here - let the visibility/unload handlers deal with it
-      // This prevents leaving the lobby on every refresh
-      
       if (countdownIntervalRef.current) {
         clearInterval(countdownIntervalRef.current);
       }
@@ -860,18 +857,21 @@ export default function LobbyPage() {
     };
   }, [lobbyId, router, hasRejoined]);
 
-  // Handle cleanup on page unload with grace period for reconnection
+  // Handle cleanup on page unload and navigation
   useEffect(() => {
     if (!playerId || !lobbyId) return;
     
+    let isUnmounting = false;
+    
+    // Simple approach: on any unload, check if we're still in the lobby URL
     const handleBeforeUnload = () => {
-      // Send leave request when closing tab/window
-      // The server will mark player as disconnecting but give them time to reconnect
+      // If we're leaving the lobby page, remove player immediately
+      const stillInLobby = window.location.pathname.includes(`/lobby/${lobbyId}`);
+      
       if (navigator.sendBeacon) {
-        // Create a Blob with proper content type for sendBeacon
         const data = JSON.stringify({ 
-          explicit: false,  // Not an explicit leave, might be refresh
-          gracePeriod: true // Give time to reconnect
+          explicit: !stillInLobby,  // Explicit leave if not in lobby anymore
+          gracePeriod: stillInLobby  // Grace period only if still in lobby (refresh)
         });
         const blob = new Blob([data], { type: 'application/json' });
         navigator.sendBeacon(`/api/lobby/${lobbyId}/leave`, blob);
@@ -880,8 +880,48 @@ export default function LobbyPage() {
     
     window.addEventListener('beforeunload', handleBeforeUnload);
     
+    // When component unmounts, check why
     return () => {
+      isUnmounting = true;
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      
+      // Synchronously check if we're navigating away
+      const currentPath = window.location.pathname;
+      const leavingLobby = !currentPath.includes(`/lobby/${lobbyId}`);
+      
+      // Log for debugging
+      logger.debug('[Lobby] Component unmounting:', {
+        currentPath,
+        lobbyId,
+        leavingLobby,
+        playerId
+      });
+      
+      if (leavingLobby || isUnmounting) {
+        // Force immediate removal when navigating away
+        const leaveData = JSON.stringify({ 
+          explicit: true, 
+          gracePeriod: false,
+          reason: 'navigation' 
+        });
+        
+        // Use sendBeacon for reliability
+        if (navigator.sendBeacon) {
+          const blob = new Blob([leaveData], { type: 'application/json' });
+          const sent = navigator.sendBeacon(`/api/lobby/${lobbyId}/leave`, blob);
+          logger.debug('[Lobby] Beacon sent:', sent);
+        }
+        
+        // Also try synchronous XMLHttpRequest as last resort
+        try {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', `/api/lobby/${lobbyId}/leave`, false); // Synchronous
+          xhr.setRequestHeader('Content-Type', 'application/json');
+          xhr.send(leaveData);
+        } catch (e) {
+          console.error('[Lobby] Sync leave failed:', e);
+        }
+      }
     };
   }, [playerId, lobbyId]);
 
@@ -946,8 +986,66 @@ export default function LobbyPage() {
 
         if (!res.ok) {
           console.error('Failed to submit click:', res.status);
-          // Don't show error to user for click failures - it would be too disruptive
-          // The game will continue and SSE will sync the state
+          return;
+        }
+
+        // Get immediate feedback from the API response
+        const result = await res.json();
+        
+        if (result.found) {
+          // Immediately update local state for instant feedback
+          setPlayerFoundEmojiId(emojiId);
+          
+          // Show confetti animation
+          setShowSuccess(true);
+          setTimeout(() => {
+            setShowSuccess(false);
+          }, 2000);
+          
+          // Trigger score animation
+          const animationId = Date.now();
+          setScoreAnimation({ points: result.points, id: animationId });
+          setTimeout(() => {
+            setScoreAnimation((prev) => prev?.id === animationId ? null : prev);
+          }, 2000);
+          
+          // Update local player score immediately with animation
+          setLobby(prev => {
+            if (!prev) return prev;
+            
+            const updatedLobby = { ...prev };
+            const player = updatedLobby.players.find(p => p.id === playerId);
+            const currentRound = updatedLobby.rounds[updatedLobby.currentRound - 1];
+            
+            if (player && currentRound) {
+              const oldScore = player.score || 0;
+              const newScore = oldScore + result.points;
+              player.score = newScore;
+              
+              // Animate score counting up
+              const duration = 1000; // 1 second animation
+              const steps = 20;
+              const increment = result.points / steps;
+              let currentStep = 0;
+              
+              const countInterval = setInterval(() => {
+                currentStep++;
+                if (currentStep >= steps) {
+                  setDisplayScore(newScore);
+                  clearInterval(countInterval);
+                } else {
+                  setDisplayScore(Math.floor(oldScore + increment * currentStep));
+                }
+              }, duration / steps);
+              
+              // Also update the round's foundBy to prevent duplicate clicks
+              if (!currentRound.foundBy.find(f => f.playerId === playerId)) {
+                currentRound.foundBy.push({ playerId, timestamp: Date.now() });
+              }
+            }
+            
+            return updatedLobby;
+          });
         }
       } catch (err) {
         console.error('Error submitting click:', err);

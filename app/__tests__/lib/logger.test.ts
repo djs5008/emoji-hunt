@@ -90,7 +90,7 @@ describe('Logger', () => {
       process.env.NODE_ENV = 'test';
     });
 
-    it('should log messages in test environment', () => {
+    it('should log all levels in test environment', () => {
       const testLogger = new (logger.constructor as any)();
       testLogger.debug('Test debug in test env');
       testLogger.info('Test info in test env');
@@ -130,11 +130,22 @@ describe('Logger', () => {
       expect(consoleWarnSpy).not.toHaveBeenCalled();
     });
 
-    it('should not log error messages in production', () => {
+    it('should log error messages in production', () => {
       const testLogger = new (logger.constructor as any)();
-      testLogger.error('Test error message', new Error('Test'), { data: 'test' });
+      const error = new Error('Test error');
+      testLogger.error('Test error message', error, { data: 'test' });
       
-      expect(consoleErrorSpy).not.toHaveBeenCalled();
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '[ERROR] Test error message',
+        {
+          error: {
+            message: 'Test error',
+            stack: error.stack,
+            name: 'Error',
+          },
+          data: 'test',
+        }
+      );
     });
   });
 

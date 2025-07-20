@@ -5,7 +5,7 @@ import { GET } from '@/app/api/lobby/[id]/route';
 jest.mock('@/app/lib/game-state-async');
 jest.mock('@/app/lib/player-session');
 
-import { getLobby } from '@/app/lib/game-state-async';
+import { getLobby } from '@/app/lib/ioredis-storage';
 import { SessionManager } from '@/app/lib/player-session';
 
 const mockGetLobby = getLobby as jest.Mock;

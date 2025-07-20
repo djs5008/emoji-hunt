@@ -55,7 +55,6 @@ class Logger {
    * Error level logging
    */
   error(message: string, error?: Error | unknown, context?: LogContext): void {
-    if (this.isDevelopment || this.isTest) {
       console.error(`[ERROR] ${message}`, {
         error: error instanceof Error ? {
           message: error.message,
@@ -64,7 +63,6 @@ class Logger {
         } : error,
         ...context,
       });
-    }
     // In production, could send to Sentry
     // Example: Sentry.captureException(error, { extra: context });
   }

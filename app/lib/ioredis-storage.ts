@@ -1,19 +1,18 @@
 import { Lobby } from '@/app/types/game';
-import { getUpstashRedis } from './upstash-redis';
+import { getIoRedis } from './ioredis-client';
 import { logger } from './logger';
 
 /**
- * Upstash Storage Layer
+ * IoRedis Storage Layer
  * 
- * @description High-level storage operations for game data using Upstash Redis.
- * Handles lobby persistence, event streaming, and health checks. All data is
- * automatically expired to prevent storage bloat.
+ * @description High-level storage operations for game data using ioredis.
+ * Handles lobby persistence with automatic expiration to prevent storage bloat.
+ * This replaces the upstash-storage.ts module with ioredis-based implementation.
  * 
  * Key features:
- * - Automatic JSON serialization/deserialization
+ * - JSON serialization/deserialization (unlike Upstash, ioredis requires manual JSON handling)
  * - TTL-based expiration for all data
- * - Event queue management for real-time updates
- * - Health check capabilities
+ * - Consistent API with the previous upstash-storage module
  */
 
 const LOBBY_TTL = 3600; // 1 hour TTL for lobbies
@@ -21,23 +20,23 @@ const LOBBY_TTL = 3600; // 1 hour TTL for lobbies
 /**
  * Retrieves a lobby from Redis
  * 
- * @description Fetches lobby data by ID. Upstash automatically deserializes
- * JSON, so the returned object is ready to use.
+ * @description Fetches lobby data by ID and parses the JSON string.
+ * Unlike Upstash, ioredis returns raw strings that need parsing.
  * 
  * @param {string} id - Lobby ID to retrieve
  * @returns {Promise<Lobby | null>} Lobby object or null if not found
  */
 export async function getLobby(id: string): Promise<Lobby | null> {
   try {
-    const client = getUpstashRedis();
+    const client = getIoRedis();
     const data = await client.get(`lobby:${id}`);
-    // Upstash handles JSON parsing automatically
-    return data as Lobby | null;
+    // Parse JSON string returned by ioredis
+    return data ? JSON.parse(data) : null;
   } catch (error) {
     logger.error('Error getting lobby from Redis', error as Error, { lobbyId: id });
     // Check if it's a connection/credentials error
-    if (error instanceof Error && error.message.includes('credentials')) {
-      logger.error('Redis connection error - check UPSTASH_REDIS_REST_KV_REST_API_URL and UPSTASH_REDIS_REST_KV_REST_API_TOKEN environment variables');
+    if (error instanceof Error && error.message.includes('ECONNREFUSED')) {
+      logger.error('Redis connection error - check REDIS_URL environment variable');
     }
     return null;
   }
@@ -54,17 +53,16 @@ export async function getLobby(id: string): Promise<Lobby | null> {
  */
 export async function setLobby(lobby: Lobby): Promise<void> {
   try {
-    const client = getUpstashRedis();
+    const client = getIoRedis();
     
     // Serialize and save with TTL
     await client.setex(`lobby:${lobby.id}`, LOBBY_TTL, JSON.stringify(lobby));
   } catch (error) {
     logger.error('Error setting lobby in Redis', error as Error, { lobbyId: lobby.id });
     // Check if it's a connection/credentials error
-    if (error instanceof Error && error.message.includes('credentials')) {
-      logger.error('Redis connection error - check UPSTASH_REDIS_REST_KV_REST_API_URL and UPSTASH_REDIS_REST_KV_REST_API_TOKEN environment variables');
+    if (error instanceof Error && error.message.includes('ECONNREFUSED')) {
+      logger.error('Redis connection error - check REDIS_URL environment variable');
     }
     throw error;
   }
 }
-

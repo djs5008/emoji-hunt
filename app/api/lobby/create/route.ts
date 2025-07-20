@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createLobby, getLobby } from '@/app/lib/game-state-async';
+import { createLobby } from '@/app/lib/game-state-async';
 import { nanoid } from 'nanoid';
-import { setex } from '@/app/lib/upstash-redis';
+import { setex } from '@/app/lib/ioredis-client';
 import { SessionManager } from '@/app/lib/player-session';
 import { withRateLimitedRoute } from '@/app/lib/rate-limit-middleware';
 import { logger } from '@/app/lib/logger';

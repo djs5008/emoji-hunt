@@ -1,7 +1,13 @@
 // Mock Redis functions before importing the module
-jest.mock('@/app/lib/upstash-redis');
+jest.mock('@/app/lib/ioredis-client', () => ({
+  rpush: jest.fn(),
+  expire: jest.fn(),
+  lrange: jest.fn(),
+  del: jest.fn(),
+  getIoRedis: jest.fn(),
+}));
 
-import { rpush, expire } from '@/app/lib/upstash-redis';
+import { rpush, expire } from '@/app/lib/ioredis-client';
 import { broadcastToLobby, SSE_EVENTS } from '@/app/lib/sse-broadcast';
 
 const mockRpush = rpush as jest.Mock;

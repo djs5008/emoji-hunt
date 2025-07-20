@@ -2,13 +2,13 @@ import { POST } from '@/app/api/lobby/join/route';
 import { NextRequest } from 'next/server';
 import { joinLobby } from '@/app/lib/game-state-async';
 import { broadcastToLobby, SSE_EVENTS } from '@/app/lib/sse-broadcast';
-import { setex } from '@/app/lib/upstash-redis';
+import { setex } from '@/app/lib/ioredis-client';
 import { SessionManager } from '@/app/lib/player-session';
 
 // Mock dependencies
 jest.mock('@/app/lib/game-state-async');
 jest.mock('@/app/lib/sse-broadcast');
-jest.mock('@/app/lib/upstash-redis');
+jest.mock('@/app/lib/ioredis-client');
 jest.mock('@/app/lib/player-session');
 jest.mock('@/app/lib/rate-limit-middleware', () => ({
   withRateLimitedRoute: (handler: any) => handler,

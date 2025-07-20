@@ -1,11 +1,11 @@
 import { POST } from '@/app/api/lobby/[id]/leave/route';
 import { NextRequest } from 'next/server';
-import { del } from '@/app/lib/upstash-redis';
+import { del } from '@/app/lib/ioredis-client';
 import { checkDisconnectedPlayers } from '@/app/lib/player-heartbeat';
 import { SessionManager } from '@/app/lib/player-session';
 
 // Mock dependencies
-jest.mock('@/app/lib/upstash-redis');
+jest.mock('@/app/lib/ioredis-client');
 jest.mock('@/app/lib/player-heartbeat');
 jest.mock('@/app/lib/player-session');
 jest.mock('@/app/lib/rate-limit-middleware', () => ({

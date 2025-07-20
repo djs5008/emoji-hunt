@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto';
 import { cookies } from 'next/headers';
-import { getUpstashRedis } from './upstash-redis';
+import { getIoRedis } from './ioredis-client';
 import { logger } from './logger';
 
 const SESSION_PREFIX = 'session:';
@@ -52,7 +52,7 @@ export class SessionManager {
    * Save session to Redis
    */
   static async saveSession(token: string, session: PlayerSession): Promise<void> {
-    const redis = getUpstashRedis();
+    const redis = getIoRedis();
     const key = `${SESSION_PREFIX}${token}`;
     
     await redis.setex(
@@ -66,7 +66,7 @@ export class SessionManager {
    * Get session from Redis
    */
   static async getSession(token: string): Promise<PlayerSession | null> {
-    const redis = getUpstashRedis();
+    const redis = getIoRedis();
     const key = `${SESSION_PREFIX}${token}`;
     
     const data = await redis.get(key);
@@ -106,7 +106,7 @@ export class SessionManager {
    * Delete session
    */
   static async deleteSession(token: string): Promise<void> {
-    const redis = getUpstashRedis();
+    const redis = getIoRedis();
     const key = `${SESSION_PREFIX}${token}`;
     await redis.del(key);
   }

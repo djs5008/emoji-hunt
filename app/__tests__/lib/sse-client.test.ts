@@ -66,7 +66,7 @@ describe('SSEClient', () => {
     };
 
     sseClient = new SSEClient('TEST123');
-    consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+    consoleSpy = jest.spyOn(console, 'info').mockImplementation();
   });
 
   afterEach(() => {
@@ -119,11 +119,12 @@ describe('SSEClient', () => {
       });
     });
 
-    it('should set up proactive reconnection timer', () => {
+    it('should set up event listeners without client-side timer', () => {
       sseClient.connect(mockHandlers);
 
-      // Check that setTimeout was called with 4.5 minutes (270000ms)
-      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 270000);
+      // Server now handles reconnection, no client-side timer needed
+      expect(mockEventSource.addEventListener).toHaveBeenCalled();
+      expect(setTimeoutSpy).not.toHaveBeenCalled();
     });
 
     it('should close existing connection before creating new one', () => {
@@ -385,7 +386,7 @@ describe('SSEClient', () => {
       mockEventSource.readyState = 2; // CLOSED
 
       // Simulate proactive reconnection
-      jest.advanceTimersByTime(270000); // 4.5 minutes
+      jest.advanceTimersByTime(240000); // 4 minutes
 
       // Should not call error handler
       expect(mockHandlers.onError).not.toHaveBeenCalled();
@@ -416,26 +417,27 @@ describe('SSEClient', () => {
     });
   });
 
-  describe('proactive reconnection', () => {
-    it.skip('should trigger proactive reconnection after 4.5 minutes', () => {
-      // This test is complex due to timer interactions - the functionality is covered elsewhere
+  describe('server-driven reconnection', () => {
+    it('should handle server-driven reconnection', () => {
+      // Server now controls reconnection timing
       sseClient.connect(mockHandlers);
-
-      // Fast-forward time to trigger proactive reconnection
-      jest.advanceTimersByTime(270000); // 4.5 minutes
-
-      expect(consoleSpy).toHaveBeenCalledWith('[SSE] Proactive reconnection to prevent timeout...');
-      expect(mockEventSource.close).toHaveBeenCalled();
+      
+      // No client-side timers should be set for proactive reconnection
+      expect(setTimeoutSpy).not.toHaveBeenCalled();
     });
 
-    it('should clear old timer when establishing new connection', () => {
+    it('should reconnect when server sends reconnect event', () => {
       sseClient.connect(mockHandlers);
-      const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
-
-      // Connect again
-      sseClient.connect(mockHandlers);
-
-      expect(clearTimeoutSpy).toHaveBeenCalled();
+      const closeSpy = jest.spyOn(mockEventSource, 'close');
+      
+      // Simulate server sending reconnect event
+      const reconnectHandler = mockEventSource.addEventListener.mock.calls
+        .find(call => call[0] === 'reconnect')[1];
+      reconnectHandler({ data: '{"reason": "scheduled"}' });
+      
+      expect(closeSpy).toHaveBeenCalled();
+      // Logger output format might vary in different environments, 
+      // the important check is that close() was called
     });
   });
 
@@ -447,12 +449,13 @@ describe('SSEClient', () => {
       expect(mockEventSource.close).toHaveBeenCalled();
     });
 
-    it('should clear connection timer', () => {
+    it('should not need to clear timers on disconnect', () => {
       const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
       sseClient.connect(mockHandlers);
       sseClient.disconnect();
 
-      expect(clearTimeoutSpy).toHaveBeenCalled();
+      // No timers to clear since server handles reconnection
+      expect(clearTimeoutSpy).not.toHaveBeenCalled();
     });
 
     it('should handle disconnect when not connected', () => {
@@ -525,23 +528,24 @@ describe('SSEClient', () => {
       expect(mockHandlers.onGameEnded).toHaveBeenCalled();
     });
 
-    it.skip('should handle multiple rapid reconnections', () => {
-      // This test is complex due to internal state tracking - the functionality is covered elsewhere
+    it.skip('should handle multiple rapid reconnections - complex due to EventSource state management', () => {
       sseClient.connect(mockHandlers);
       mockEventSource.readyState = 0; // CONNECTING
       setTimeoutSpy.mockClear();
 
       // First error - should schedule 1000ms delay
       mockEventSource.triggerError();
-      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 1000);
+      expect(setTimeoutSpy).toHaveBeenLastCalledWith(expect.any(Function), 1000);
 
       // Second error - should schedule 2000ms delay  
+      setTimeoutSpy.mockClear();
       mockEventSource.triggerError();
-      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 2000);
+      expect(setTimeoutSpy).toHaveBeenLastCalledWith(expect.any(Function), 2000);
 
       // Third error - should schedule 3000ms delay
+      setTimeoutSpy.mockClear();
       mockEventSource.triggerError();
-      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 3000);
+      expect(setTimeoutSpy).toHaveBeenLastCalledWith(expect.any(Function), 3000);
     });
 
     it('should handle connection during different lobby states', () => {

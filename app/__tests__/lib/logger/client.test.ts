@@ -25,9 +25,9 @@ describe('Client Logger', () => {
     consoleErrorSpy.mockRestore();
   });
 
-  describe('In Current Environment', () => {
-    // Since test:ci runs with NODE_ENV=development, the logger will be active
-    it('should log debug messages when NODE_ENV is development', () => {
+  describe('In Test Environment', () => {
+    // Client logger logs all levels in test/dev environments
+    it('should log debug messages in test environment', () => {
       logger.debug('Test debug message', { data: 'test' });
       expect(consoleDebugSpy).toHaveBeenCalledWith(
         '[DEBUG] Test debug message',
@@ -35,7 +35,7 @@ describe('Client Logger', () => {
       );
     });
 
-    it('should log info messages when NODE_ENV is development', () => {
+    it('should log info messages in test environment', () => {
       logger.info('Test info message', { data: 'test' });
       expect(consoleInfoSpy).toHaveBeenCalledWith(
         '[INFO] Test info message',
@@ -43,7 +43,7 @@ describe('Client Logger', () => {
       );
     });
 
-    it('should log warn messages when NODE_ENV is development', () => {
+    it('should log warn messages in test environment', () => {
       logger.warn('Test warn message', { data: 'test' });
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         '[WARN] Test warn message',
@@ -51,7 +51,7 @@ describe('Client Logger', () => {
       );
     });
 
-    it('should log error messages when NODE_ENV is development', () => {
+    it('should log error messages in test environment', () => {
       const error = new Error('Test');
       logger.error('Test error message', error, { data: 'test' });
       expect(consoleErrorSpy).toHaveBeenCalledWith(

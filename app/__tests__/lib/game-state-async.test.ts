@@ -3,13 +3,13 @@ import {
   joinLobby, 
   generateRound
 } from '@/app/lib/game-state-async';
-import { getLobby, setLobby } from '@/app/lib/upstash-storage';
+import { getLobby, setLobby } from '@/app/lib/ioredis-storage';
 import { getRandomFaceEmoji } from '@/app/lib/face-emojis';
 import { getRandomEmojis } from '@/app/lib/emojis';
 import { Lobby } from '@/app/types/game';
 
 // Mock dependencies
-jest.mock('@/app/lib/upstash-storage');
+jest.mock('@/app/lib/ioredis-storage');
 jest.mock('@/app/lib/face-emojis');
 jest.mock('@/app/lib/emojis');
 jest.mock('nanoid', () => ({

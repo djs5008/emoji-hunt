@@ -1,13 +1,16 @@
 import { checkDisconnectedPlayers } from '@/app/lib/player-heartbeat';
-import { getLobby } from '@/app/lib/game-state-async';
-import { setLobby } from '@/app/lib/upstash-storage';
-import { get, del, keys } from '@/app/lib/upstash-redis';
+import { getLobby, setLobby } from '@/app/lib/ioredis-storage';
+import { get, del, keys } from '@/app/lib/ioredis-client';
 import { broadcastToLobby, SSE_EVENTS } from '@/app/lib/sse-broadcast';
 
 // Mock dependencies
-jest.mock('@/app/lib/game-state-async');
-jest.mock('@/app/lib/upstash-storage');
-jest.mock('@/app/lib/upstash-redis');
+jest.mock('@/app/lib/ioredis-storage');
+jest.mock('@/app/lib/ioredis-client', () => ({
+  get: jest.fn(),
+  del: jest.fn(),
+  keys: jest.fn(),
+  getIoRedis: jest.fn(),
+}));
 jest.mock('@/app/lib/sse-broadcast');
 
 describe('Player Heartbeat', () => {
@@ -136,7 +139,7 @@ describe('Player Heartbeat', () => {
           return Promise.resolve((currentTime - 1000).toString()); // Recent
         }
         if (key.includes('player2:heartbeat')) {
-          return Promise.resolve((currentTime - 6000).toString()); // Old (6 seconds)
+          return Promise.resolve((currentTime - 6001).toString()); // Old (over 6 seconds)
         }
         if (key.includes('player3:heartbeat')) {
           return Promise.resolve((currentTime - 2000).toString()); // Recent
@@ -156,10 +159,10 @@ describe('Player Heartbeat', () => {
       expect(del).toHaveBeenCalledWith('player:TEST123:player2:heartbeat');
     });
 
-    it('should use 5 second threshold for heartbeat timeout', async () => {
+    it('should use 6 second threshold for heartbeat timeout', async () => {
       (get as jest.Mock).mockImplementation((key: string) => {
         if (key.includes('player2:heartbeat')) {
-          return Promise.resolve((currentTime - 3001).toString()); // Just over 3 seconds
+          return Promise.resolve((currentTime - 6001).toString()); // Just over 6 seconds
         }
         return Promise.resolve((currentTime - 1000).toString());
       });
@@ -174,10 +177,10 @@ describe('Player Heartbeat', () => {
       );
     });
 
-    it('should not remove players at exactly 3 second threshold', async () => {
+    it('should not remove players at exactly 6 second threshold', async () => {
       (get as jest.Mock).mockImplementation((key: string) => {
         if (key.includes('player2:heartbeat')) {
-          return Promise.resolve((currentTime - 3000).toString()); // Exactly 3 seconds
+          return Promise.resolve((currentTime - 6000).toString()); // Exactly 6 seconds
         }
         return Promise.resolve((currentTime - 1000).toString());
       });
@@ -249,7 +252,7 @@ describe('Player Heartbeat', () => {
     it('should reassign host when current host disconnects', async () => {
       (get as jest.Mock).mockImplementation((key: string) => {
         if (key.includes('player1:heartbeat')) {
-          return Promise.resolve((currentTime - 6000).toString()); // Host disconnected
+          return Promise.resolve((currentTime - 6001).toString()); // Host disconnected
         }
         return Promise.resolve((currentTime - 1000).toString());
       });
@@ -274,7 +277,7 @@ describe('Player Heartbeat', () => {
       
       (get as jest.Mock).mockImplementation((key: string) => {
         if (key.includes('player1:heartbeat')) {
-          return Promise.resolve((currentTime - 6000).toString()); // Host disconnected
+          return Promise.resolve((currentTime - 6001).toString()); // Host disconnected
         }
         return Promise.resolve((currentTime - 1000).toString());
       });
@@ -290,7 +293,7 @@ describe('Player Heartbeat', () => {
     it('should not reassign host if non-host disconnects', async () => {
       (get as jest.Mock).mockImplementation((key: string) => {
         if (key.includes('player2:heartbeat')) {
-          return Promise.resolve((currentTime - 6000).toString()); // Non-host disconnected
+          return Promise.resolve((currentTime - 6001).toString()); // Non-host disconnected
         }
         return Promise.resolve((currentTime - 1000).toString());
       });
@@ -307,7 +310,7 @@ describe('Player Heartbeat', () => {
     it('should clean up player Redis keys on disconnect', async () => {
       (get as jest.Mock).mockImplementation((key: string) => {
         if (key.includes('player2:heartbeat')) {
-          return Promise.resolve((currentTime - 6000).toString());
+          return Promise.resolve((currentTime - 6001).toString());
         }
         return Promise.resolve((currentTime - 1000).toString());
       });
@@ -323,7 +326,7 @@ describe('Player Heartbeat', () => {
     it('should broadcast player left event', async () => {
       (get as jest.Mock).mockImplementation((key: string) => {
         if (key.includes('player2:heartbeat')) {
-          return Promise.resolve((currentTime - 6000).toString());
+          return Promise.resolve((currentTime - 6001).toString());
         }
         return Promise.resolve((currentTime - 1000).toString());
       });
@@ -347,7 +350,7 @@ describe('Player Heartbeat', () => {
     it('should handle multiple disconnected players', async () => {
       (get as jest.Mock).mockImplementation((key: string) => {
         if (key.includes('player2:heartbeat') || key.includes('player3:heartbeat')) {
-          return Promise.resolve((currentTime - 6000).toString());
+          return Promise.resolve((currentTime - 6001).toString());
         }
         return Promise.resolve((currentTime - 1000).toString());
       });
@@ -372,7 +375,7 @@ describe('Player Heartbeat', () => {
 
   describe('Empty Lobby Cleanup', () => {
     it('should delete lobby when all players disconnect', async () => {
-      (get as jest.Mock).mockResolvedValue((currentTime - 6000).toString()); // All old heartbeats
+      (get as jest.Mock).mockResolvedValue((currentTime - 6001).toString()); // All old heartbeats
       
       await checkDisconnectedPlayers('TEST123');
       
@@ -380,7 +383,7 @@ describe('Player Heartbeat', () => {
     });
 
     it('should clean up orphaned player keys when lobby is empty', async () => {
-      (get as jest.Mock).mockResolvedValue((currentTime - 6000).toString());
+      (get as jest.Mock).mockResolvedValue((currentTime - 6001).toString());
       (keys as jest.Mock).mockImplementation((pattern: string) => {
         if (pattern.includes('player:TEST123:')) {
           return Promise.resolve(['player:TEST123:old:heartbeat', 'player:TEST123:old:joinTime']);
@@ -395,7 +398,7 @@ describe('Player Heartbeat', () => {
     });
 
     it('should clean up distributed locks when lobby is empty', async () => {
-      (get as jest.Mock).mockResolvedValue((currentTime - 6000).toString());
+      (get as jest.Mock).mockResolvedValue((currentTime - 6001).toString());
       (keys as jest.Mock).mockImplementation((pattern: string) => {
         if (pattern.includes('lock:')) {
           return Promise.resolve(['lobby:TEST123:lock:start', 'lobby:TEST123:lock:end']);
@@ -412,7 +415,7 @@ describe('Player Heartbeat', () => {
     it('should not clean up keys if lobby is not empty', async () => {
       (get as jest.Mock).mockImplementation((key: string) => {
         if (key.includes('player2:heartbeat')) {
-          return Promise.resolve((currentTime - 6000).toString()); // Only player2 disconnects
+          return Promise.resolve((currentTime - 6001).toString()); // Only player2 disconnects
         }
         return Promise.resolve((currentTime - 1000).toString());
       });
@@ -432,14 +435,14 @@ describe('Player Heartbeat', () => {
     });
 
     it('should propagate setLobby errors', async () => {
-      (get as jest.Mock).mockResolvedValue((currentTime - 6000).toString());
+      (get as jest.Mock).mockResolvedValue((currentTime - 6001).toString());
       (setLobby as jest.Mock).mockRejectedValue(new Error('Storage error'));
       
       await expect(checkDisconnectedPlayers('TEST123')).rejects.toThrow('Storage error');
     });
 
     it('should propagate broadcast errors', async () => {
-      (get as jest.Mock).mockResolvedValue((currentTime - 6000).toString());
+      (get as jest.Mock).mockResolvedValue((currentTime - 6001).toString());
       (broadcastToLobby as jest.Mock).mockRejectedValue(new Error('Broadcast error'));
       
       await expect(checkDisconnectedPlayers('TEST123')).rejects.toThrow('Broadcast error');
@@ -493,7 +496,7 @@ describe('Player Heartbeat', () => {
 
     it('should handle lobby with single player', async () => {
       mockLobby.players = [mockLobby.players[0]];
-      (get as jest.Mock).mockResolvedValue((currentTime - 6000).toString());
+      (get as jest.Mock).mockResolvedValue((currentTime - 6001).toString());
       
       await checkDisconnectedPlayers('TEST123');
       
@@ -501,7 +504,7 @@ describe('Player Heartbeat', () => {
     });
 
     it('should handle concurrent cleanup calls', async () => {
-      (get as jest.Mock).mockResolvedValue((currentTime - 6000).toString());
+      (get as jest.Mock).mockResolvedValue((currentTime - 6001).toString());
       
       const [result1, result2] = await Promise.all([
         checkDisconnectedPlayers('TEST123'),
@@ -516,7 +519,7 @@ describe('Player Heartbeat', () => {
     it('should skip already marked players in force remove + timeout scenario', async () => {
       (get as jest.Mock).mockImplementation((key: string) => {
         if (key.includes('player2:heartbeat')) {
-          return Promise.resolve((currentTime - 6000).toString()); // Also timed out
+          return Promise.resolve((currentTime - 6001).toString()); // Also timed out
         }
         return Promise.resolve((currentTime - 1000).toString());
       });

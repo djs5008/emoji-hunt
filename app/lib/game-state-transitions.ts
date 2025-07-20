@@ -1,8 +1,7 @@
-import { getLobby, generateRound } from './game-state-async';
-import { setLobby } from './upstash-storage';
-import { getUpstashRedis } from './upstash-redis';
+import { generateRound } from './game-state-async';
+import { setLobby, getLobby } from './ioredis-storage';
+import { getIoRedis } from './ioredis-client';
 import { broadcastToLobby, SSE_EVENTS } from './sse-broadcast';
-import { Lobby } from '@/app/types/game';
 import { logger } from './logger';
 
 /**
@@ -34,11 +33,11 @@ import { logger } from './logger';
  * @returns {Promise<boolean>} True if lock acquired, false if already locked
  */
 async function acquireStateLock(lobbyId: string, transition: string): Promise<boolean> {
-  const redis = getUpstashRedis();
+  const redis = getIoRedis();
   const lockKey = `lobby:${lobbyId}:lock:${transition}`;
   
   // SET NX with 5 second expiry prevents deadlocks
-  const result = await redis.set(lockKey, Date.now().toString(), { ex: 5, nx: true });
+  const result = await redis.set(lockKey, Date.now().toString(), 'EX', 5, 'NX');
   return result === 'OK';
 }
 
@@ -49,7 +48,7 @@ async function acquireStateLock(lobbyId: string, transition: string): Promise<bo
  * @param {string} transition - The transition type
  */
 async function releaseStateLock(lobbyId: string, transition: string): Promise<void> {
-  const redis = getUpstashRedis();
+  const redis = getIoRedis();
   const lockKey = `lobby:${lobbyId}:lock:${transition}`;
   await redis.del(lockKey);
 }
