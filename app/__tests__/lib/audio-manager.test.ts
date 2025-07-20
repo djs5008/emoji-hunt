@@ -147,7 +147,7 @@ describe('AudioManager', () => {
       it('should play go sound at reduced volume', async () => {
         await audioManager.play(SoundType.GO);
         
-        expect(mockSynth.volume.value).toBe(-26);
+        expect(mockSynth.volume.value).toBe(-32);
         expect(mockSynth.triggerAttackRelease).toHaveBeenCalledWith('C5', '8n');
       });
     });

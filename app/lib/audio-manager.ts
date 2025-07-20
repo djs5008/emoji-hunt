@@ -157,7 +157,7 @@ class AudioManager {
       }
     }).toDestination();
 
-    synth.volume.value = -26;  // Reduced by half (6dB reduction)
+    synth.volume.value = -32;  // Much quieter
     synth.triggerAttackRelease('C5', '8n');
   }
 
