@@ -697,7 +697,9 @@ export default function LobbyPage() {
         const currentPlayerScore = data.scores.find((s: any) => 
           s.playerId === playerIdRef.current
         );
-        const currentPlayerFound = currentPlayerScore?.roundScore?.found || false;
+        // Player found the emoji if they have a roundScore with non-null timeToFind
+        const currentPlayerFound = currentPlayerScore?.roundScore?.timeToFind !== null && 
+                                  currentPlayerScore?.roundScore?.timeToFind !== undefined;
         
         // Play time up sound only for this player if they didn't find the emoji
         if (!currentPlayerFound) {
@@ -764,8 +766,7 @@ export default function LobbyPage() {
             // Only show animations if score actually increased
             // This prevents animations when replaying old events
             if (newScore > oldScore) {
-              // Play success sound
-              audioManager.play(SoundType.SUCCESS);
+              // Don't play sound here - it's already played immediately on click
               
               setShowSuccess(true);
               setTimeout(() => {
