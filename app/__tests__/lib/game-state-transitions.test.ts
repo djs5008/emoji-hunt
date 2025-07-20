@@ -225,7 +225,7 @@ describe('Game State Transitions', () => {
         gameState: 'countdown',
         currentRound: 2,
       }));
-      expect(broadcastToLobby).toHaveBeenCalledWith('test-lobby', 'game-started', expect.any(Object));
+      expect(broadcastPriorityToLobby).toHaveBeenCalledWith('test-lobby', 'game-started', expect.any(Object));
     });
 
     it('should end game after final round', async () => {
@@ -276,7 +276,7 @@ describe('Game State Transitions', () => {
       const result = await preloadRound('test-lobby', 2);
       
       expect(result).toBe(true);
-      expect(broadcastToLobby).toHaveBeenCalledWith('test-lobby', 'roundPreloaded', expect.any(Object));
+      expect(broadcastPriorityToLobby).toHaveBeenCalledWith('test-lobby', 'roundPreloaded', expect.any(Object));
     });
 
     it('should not preload if round already exists', async () => {

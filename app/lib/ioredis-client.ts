@@ -131,6 +131,32 @@ export async function lpush(key: string, ...values: any[]): Promise<number> {
   return await client.lpush(key, ...stringValues);
 }
 
+/** Create a Redis subscriber client for pub/sub */
+export function createSubscriber(): Redis {
+  if (!process.env.REDIS_URL) {
+    throw new Error('Redis URL not configured');
+  }
+  
+  // Create a new connection for pub/sub (required by Redis)
+  const subscriber = new Redis(process.env.REDIS_URL, {
+    enableReadyCheck: true,
+    maxRetriesPerRequest: 3,
+  });
+  
+  subscriber.on('error', (err) => {
+    console.error('Redis subscriber error:', err);
+  });
+  
+  return subscriber;
+}
+
+/** Publish a message to a channel */
+export async function publish(channel: string, message: any): Promise<number> {
+  const client = getIoRedis();
+  const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
+  return await client.publish(channel, messageStr);
+}
+
 /** Clean up connection (for graceful shutdown) */
 export async function quit(): Promise<void> {
   if (redis) {

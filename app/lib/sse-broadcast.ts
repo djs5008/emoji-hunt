@@ -1,4 +1,4 @@
-import { rpush, lpush, expire } from './ioredis-client';
+import { rpush, lpush, expire, publish } from './ioredis-client';
 import { logger } from './logger';
 
 /**
@@ -69,6 +69,9 @@ export async function broadcastToLobby(
   // Push to Redis event queue
   await rpush(redisKey, event);
   
+  // Also publish for real-time delivery via pub/sub
+  await publish(`lobby:${lobbyId}:channel`, event);
+  
   // Auto-expire after 30 seconds to ensure events aren't missed in development
   await expire(`lobby:${lobbyId}:events`, 30);
 }
@@ -89,11 +92,12 @@ export async function broadcastPriorityToLobby(
   eventType: string,
   data: any
 ): Promise<void> {
-  // Package event with metadata
+  // Package event with metadata and priority flag
   const event = {
     type: eventType,
     data,
     timestamp: Date.now(),
+    priority: true,
   };
   
   const redisKey = `lobby:${lobbyId}:events`;
@@ -108,6 +112,9 @@ export async function broadcastPriorityToLobby(
   
   // Push to front of Redis event queue for immediate processing
   await lpush(redisKey, event);
+  
+  // Also publish for real-time delivery via pub/sub
+  await publish(`lobby:${lobbyId}:channel`, event);
   
   // Auto-expire after 30 seconds to ensure events aren't missed in development
   await expire(`lobby:${lobbyId}:events`, 30);

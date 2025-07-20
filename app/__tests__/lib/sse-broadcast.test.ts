@@ -1,17 +1,21 @@
 // Mock Redis functions before importing the module
 jest.mock('@/app/lib/ioredis-client', () => ({
   rpush: jest.fn(),
+  lpush: jest.fn(),
   expire: jest.fn(),
   lrange: jest.fn(),
   del: jest.fn(),
   getIoRedis: jest.fn(),
+  publish: jest.fn(),
 }));
 
-import { rpush, expire } from '@/app/lib/ioredis-client';
-import { broadcastToLobby, SSE_EVENTS } from '@/app/lib/sse-broadcast';
+import { rpush, lpush, expire, publish } from '@/app/lib/ioredis-client';
+import { broadcastToLobby, broadcastPriorityToLobby, SSE_EVENTS } from '@/app/lib/sse-broadcast';
 
 const mockRpush = rpush as jest.Mock;
+const mockLpush = lpush as jest.Mock;
 const mockExpire = expire as jest.Mock;
+const mockPublish = publish as jest.Mock;
 
 describe('sse-broadcast', () => {
   beforeEach(() => {
@@ -64,6 +68,15 @@ describe('sse-broadcast', () => {
 
       expect(mockRpush).toHaveBeenCalledWith(
         'lobby:TEST123:events',
+        {
+          type: 'player-joined',
+          data: { playerId: 'player1', playerName: 'Test Player' },
+          timestamp: 1640995200000,
+        }
+      );
+      
+      expect(mockPublish).toHaveBeenCalledWith(
+        'lobby:TEST123:channel',
         {
           type: 'player-joined',
           data: { playerId: 'player1', playerName: 'Test Player' },
@@ -199,6 +212,11 @@ describe('sse-broadcast', () => {
         return Promise.resolve(1);
       });
       
+      mockPublish.mockImplementation(() => {
+        callOrder.push('publish');
+        return Promise.resolve(1);
+      });
+      
       mockExpire.mockImplementation(() => {
         callOrder.push('expire');
         return Promise.resolve(1);
@@ -206,7 +224,7 @@ describe('sse-broadcast', () => {
 
       await broadcastToLobby('TEST123', SSE_EVENTS.ROUND_STARTED, {});
 
-      expect(callOrder).toEqual(['rpush', 'expire']);
+      expect(callOrder).toEqual(['rpush', 'publish', 'expire']);
     });
 
     it('should propagate Redis rpush errors', async () => {
@@ -216,6 +234,7 @@ describe('sse-broadcast', () => {
         broadcastToLobby('TEST123', SSE_EVENTS.GAME_ENDED, {})
       ).rejects.toThrow('Redis rpush failed');
 
+      expect(mockPublish).not.toHaveBeenCalled();
       expect(mockExpire).not.toHaveBeenCalled();
     });
 
@@ -384,6 +403,53 @@ describe('sse-broadcast', () => {
       
       expect(mockRpush).toHaveBeenCalledTimes(50);
       expect(mockExpire).toHaveBeenCalledTimes(50);
+    });
+  });
+
+  describe('broadcastPriorityToLobby', () => {
+    beforeEach(() => {
+      mockLpush.mockResolvedValue(1);
+      mockPublish.mockResolvedValue(1);
+      mockExpire.mockResolvedValue(1);
+    });
+
+    it('should use lpush for priority events', async () => {
+      const lobbyId = 'TEST123';
+      const eventType = SSE_EVENTS.GAME_STARTED;
+      const data = { countdownStartTime: Date.now() };
+
+      await broadcastPriorityToLobby(lobbyId, eventType, data);
+
+      expect(mockLpush).toHaveBeenCalledWith(
+        'lobby:TEST123:events',
+        expect.objectContaining({
+          type: 'game-started',
+          data,
+          timestamp: 1640995200000,
+          priority: true
+        })
+      );
+
+      expect(mockPublish).toHaveBeenCalledWith(
+        'lobby:TEST123:channel',
+        expect.objectContaining({
+          type: 'game-started',
+          data,
+          timestamp: 1640995200000,
+          priority: true
+        })
+      );
+    });
+
+    it('should propagate lpush errors', async () => {
+      mockLpush.mockRejectedValue(new Error('Redis lpush failed'));
+
+      await expect(
+        broadcastPriorityToLobby('TEST123', SSE_EVENTS.GAME_STARTED, {})
+      ).rejects.toThrow('Redis lpush failed');
+
+      expect(mockPublish).not.toHaveBeenCalled();
+      expect(mockExpire).not.toHaveBeenCalled();
     });
   });
 });

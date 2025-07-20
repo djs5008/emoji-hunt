@@ -165,14 +165,17 @@ export default function LobbyPage() {
 
     const updateCountdown = () => {
       const elapsed = Date.now() - startTime;
-      const step = Math.floor(elapsed / 1000);
-
-      if (step < 4) {
-        const count = step === 0 ? 3 : step === 1 ? 2 : step === 2 ? 1 : 0;
+      const totalSeconds = 4; // Total countdown duration (3, 2, 1, GO!)
+      
+      if (elapsed < totalSeconds * 1000) {
+        // Calculate which number should be showing
+        // 0-1000ms = 3, 1000-2000ms = 2, 2000-3000ms = 1, 3000-4000ms = 0 (GO!)
+        const secondsElapsed = Math.floor(elapsed / 1000);
+        const count = Math.max(0, 3 - secondsElapsed);
         setCountdown(count);
         
-        // Preload round data when we hit "1" (step 2)
-        if (step === 2 && !hasPreloaded) {
+        // Preload round data when we hit "1" (2 seconds elapsed)
+        if (secondsElapsed === 2 && !hasPreloaded) {
           hasPreloaded = true;
           preloadRoundData();
         }
@@ -180,14 +183,18 @@ export default function LobbyPage() {
         setCountdown(null);
         if (countdownIntervalRef.current) {
           clearInterval(countdownIntervalRef.current);
+          countdownIntervalRef.current = null;
         }
         // Try to start the round
         checkAndStartRound();
       }
     };
-
+    
+    // Call immediately to set initial state
     updateCountdown();
-    countdownIntervalRef.current = setInterval(updateCountdown, 100);
+    
+    // Update more frequently for smoother synchronization
+    countdownIntervalRef.current = setInterval(updateCountdown, 50);
   }, [checkAndStartRound, preloadRoundData]);
 
   // Start round timer
@@ -1522,10 +1529,10 @@ export default function LobbyPage() {
                 >
                   {startingGame ? (
                     <span className="flex items-center justify-center gap-2">
-                      <span className="animate-spin">⚙️</span> Starting Game...
+                      <span className="animate-spin">⚙️</span> Starting...
                     </span>
                   ) : lobby.players.length < 2 ? (
-                    '⏳ Waiting for more players...'
+                    <span className="whitespace-nowrap">⏳ Waiting for players...</span>
                   ) : (
                     '🚀 Start Game'
                   )}

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getLobby } from '@/app/lib/ioredis-storage';
-import { setex, del, lrange, rpush, quit } from '@/app/lib/ioredis-client';
+import { setex, del, lrange, rpush, quit, createSubscriber } from '@/app/lib/ioredis-client';
 import { checkDisconnectedPlayers } from '@/app/lib/player-heartbeat';
 import { SessionManager } from '@/app/lib/player-session';
 import { logger } from '@/app/lib/logger';
@@ -108,6 +108,7 @@ export async function GET(
   const stream = new ReadableStream({
     async start(controller) {
       let isConnectionClosed = false;
+      let subscriber: any = null;
 
       // Set up disconnect timer to avoid timeout
       const disconnectTimer = setTimeout(async () => {
@@ -161,6 +162,51 @@ export async function GET(
 
       // Track connection health
       let lastSuccessfulWrite = Date.now();
+      
+      // Keep track of sent events to avoid duplicates
+      const sentEventTimestamps = new Set<number>();
+
+      // Set up Redis pub/sub for instant event delivery
+      try {
+        subscriber = createSubscriber();
+        const channelName = `lobby:${lobbyId}:channel`;
+        
+        await subscriber.subscribe(channelName);
+        
+        subscriber.on('message', (channel: string, message: string) => {
+          if (isConnectionClosed) return;
+          
+          try {
+            const event = JSON.parse(message);
+            
+            // Skip if we've already sent this event
+            if (sentEventTimestamps.has(event.timestamp)) {
+              return;
+            }
+            
+            sentEventTimestamps.add(event.timestamp);
+            
+            // Send SSE formatted event immediately
+            const sseMessage = `event: ${event.type}\ndata: ${JSON.stringify(
+              event.data
+            )}\n\n`;
+            controller.enqueue(encoder.encode(sseMessage));
+            
+            logger.debug('Sent pub/sub event', { 
+              type: event.type,
+              lobbyId,
+              playerId 
+            });
+          } catch (error) {
+            logger.error('Failed to process pub/sub message', error);
+          }
+        });
+        
+        logger.info('Subscribed to Redis channel', { channelName });
+      } catch (error) {
+        logger.error('Failed to set up pub/sub', error);
+        // Continue without pub/sub - fallback to polling
+      }
 
       /**
        * Heartbeat mechanism
@@ -213,16 +259,16 @@ export async function GET(
        * - Sends only new events to prevent duplicates
        * - Runs periodic cleanup tasks
        */
-      // Initialize timestamp to 2 seconds ago to catch very recent events
-      // This ensures we get immediate updates when reconnecting
-      let lastEventTimestamp = Date.now() - 2000;
+      // Initialize timestamp to 30 seconds ago to catch recent events
+      // This ensures we get immediate updates when reconnecting and don't miss countdown events
+      let lastEventTimestamp = Date.now() - 30000;
       let lastCleanupCheck = Date.now();
 
       logger.info('Starting SSE polling', { lobbyId, playerId });
 
-      const pollInterval = setInterval(async () => {
+      // Define the polling function
+      const pollForEvents = async () => {
         if (isConnectionClosed) {
-          clearInterval(pollInterval);
           return;
         }
 
@@ -231,10 +277,18 @@ export async function GET(
           const redisKey = `lobby:${lobbyId}:events`;
           const events = (await lrange(redisKey, 0, -1)) as any[];
 
-          // Only process events newer than our last timestamp
-          const newEvents = events.filter(
-            (event) => event.timestamp > lastEventTimestamp
-          );
+          // Process priority events first, then regular events by timestamp
+          const allNewEvents = events.filter((event) => event.timestamp > lastEventTimestamp);
+          
+          // Separate priority and regular events
+          const priorityEvents = allNewEvents.filter((e) => e.priority);
+          const regularEvents = allNewEvents.filter((e) => !e.priority);
+          
+          // Sort each group by timestamp and combine (priority first)
+          const newEvents = [
+            ...priorityEvents.sort((a, b) => a.timestamp - b.timestamp),
+            ...regularEvents.sort((a, b) => a.timestamp - b.timestamp)
+          ];
 
           if (newEvents.length > 0) {
             logger.debug('Processing new events', {
@@ -246,6 +300,12 @@ export async function GET(
 
           // Broadcast new events to this client
           for (const event of newEvents) {
+            // Skip if already sent via pub/sub
+            if (sentEventTimestamps.has(event.timestamp)) {
+              lastEventTimestamp = event.timestamp;
+              continue;
+            }
+            
             try {
               // Send SSE formatted event
               const sseMessage = `event: ${event.type}\ndata: ${JSON.stringify(
@@ -253,6 +313,7 @@ export async function GET(
               )}\n\n`;
               logger.debug('Sending SSE event', { type: event.type });
               controller.enqueue(encoder.encode(sseMessage));
+              sentEventTimestamps.add(event.timestamp);
               lastEventTimestamp = event.timestamp;
             } catch (error) {
               // Write failed = connection closed
@@ -297,7 +358,16 @@ export async function GET(
           }
           return;
         }
-      }, getPriorityPollingInterval(lobby.gameState) || getPollingInterval(lobby.gameState)); // Priority polling for critical states
+      };
+
+      // Get polling interval based on game state
+      const pollingInterval = getPriorityPollingInterval(lobby.gameState) || getPollingInterval(lobby.gameState);
+      
+      // Poll immediately on connection to catch any pending events
+      await pollForEvents();
+      
+      // Then set up regular polling
+      const pollInterval = setInterval(pollForEvents, pollingInterval);
 
       /**
        * Connection cleanup handler
@@ -310,6 +380,16 @@ export async function GET(
         clearInterval(heartbeatInterval);
         clearInterval(pollInterval);
         clearTimeout(disconnectTimer);
+
+        // Clean up pub/sub subscription
+        if (subscriber) {
+          try {
+            await subscriber.unsubscribe();
+            await subscriber.quit();
+          } catch (e) {
+            // Ignore errors during cleanup
+          }
+        }
 
         // Immediately mark player as disconnected
         await del(`player:${lobbyId}:${playerId}:heartbeat`);

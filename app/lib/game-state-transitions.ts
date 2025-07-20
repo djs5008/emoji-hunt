@@ -161,8 +161,8 @@ export async function preloadRound(lobbyId: string, roundNum: number): Promise<b
 
     await setLobby(lobby);
 
-    // Broadcast for client preloading
-    await broadcastToLobby(lobbyId, 'roundPreloaded', {
+    // Broadcast for client preloading with priority
+    await broadcastPriorityToLobby(lobbyId, 'roundPreloaded', {
       round,
       currentRound: roundNum,
     });
@@ -341,8 +341,8 @@ export async function checkAndProgressAfterRoundEnd(lobbyId: string, roundNum: n
 
       await setLobby(lobby);
 
-      // Reuse GAME_STARTED event for round transitions
-      await broadcastToLobby(lobbyId, SSE_EVENTS.GAME_STARTED, {
+      // Reuse GAME_STARTED event for round transitions with priority
+      await broadcastPriorityToLobby(lobbyId, SSE_EVENTS.GAME_STARTED, {
         countdownStartTime: lobby.countdownStartTime,
         currentRound: roundNum + 1,
       });
