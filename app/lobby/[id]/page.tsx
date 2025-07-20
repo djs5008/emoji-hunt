@@ -1039,39 +1039,16 @@ export default function LobbyPage() {
             setScoreAnimation((prev) => prev?.id === animationId ? null : prev);
           }, 2000);
           
-          // Update local player score immediately with animation
+          // Don't update score locally - wait for SSE event with authoritative score
+          // Just update the round's foundBy to prevent duplicate clicks
           setLobby(prev => {
             if (!prev) return prev;
             
             const updatedLobby = { ...prev };
-            const player = updatedLobby.players.find(p => p.id === playerId);
             const currentRound = updatedLobby.rounds[updatedLobby.currentRound - 1];
             
-            if (player && currentRound) {
-              const oldScore = player.score || 0;
-              const newScore = oldScore + result.points;
-              player.score = newScore;
-              
-              // Animate score counting up
-              const duration = 1000; // 1 second animation
-              const steps = 20;
-              const increment = result.points / steps;
-              let currentStep = 0;
-              
-              const countInterval = setInterval(() => {
-                currentStep++;
-                if (currentStep >= steps) {
-                  setDisplayScore(newScore);
-                  clearInterval(countInterval);
-                } else {
-                  setDisplayScore(Math.floor(oldScore + increment * currentStep));
-                }
-              }, duration / steps);
-              
-              // Also update the round's foundBy to prevent duplicate clicks
-              if (!currentRound.foundBy.find(f => f.playerId === playerId)) {
-                currentRound.foundBy.push({ playerId, timestamp: Date.now() });
-              }
+            if (currentRound && !currentRound.foundBy.find(f => f.playerId === playerId)) {
+              currentRound.foundBy.push({ playerId, timestamp: Date.now() });
             }
             
             return updatedLobby;
