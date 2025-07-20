@@ -15,6 +15,7 @@ const mockPolySynth = {
 
 const mockFilter = {
   toDestination: jest.fn().mockReturnThis(),
+  connect: jest.fn().mockReturnThis(),
 };
 
 const mockLoop = {

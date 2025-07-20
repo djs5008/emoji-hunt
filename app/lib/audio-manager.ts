@@ -7,7 +7,8 @@ export enum SoundType {
   GAME_OVER = 'gameOver',
   TICK = 'tick',
   GO = 'go',
-  CLICK = 'click'
+  CLICK = 'click',
+  TIME_UP = 'timeUp'
 }
 
 class AudioManager {
@@ -76,6 +77,9 @@ class AudioManager {
       case SoundType.CLICK:
         this.playClick();
         break;
+      case SoundType.TIME_UP:
+        this.playTimeUp();
+        break;
     }
   }
 
@@ -137,7 +141,7 @@ class AudioManager {
       }
     }).toDestination();
 
-    synth.volume.value = -20;
+    synth.volume.value = -26;  // Reduced by half (6dB reduction)
     synth.triggerAttackRelease('A4', '16n');
   }
 
@@ -153,7 +157,7 @@ class AudioManager {
       }
     }).toDestination();
 
-    synth.volume.value = -20;
+    synth.volume.value = -26;  // Reduced by half (6dB reduction)
     synth.triggerAttackRelease('C5', '8n');
   }
 
@@ -218,6 +222,34 @@ class AudioManager {
 
     synth.volume.value = -24;
     synth.triggerAttackRelease('C6', '64n');
+  }
+
+  private playTimeUp() {
+    // Dejected trumpet/tuba sound - descending with mid/high notes
+    const synth = new Tone.Synth({
+      oscillator: { type: 'sawtooth' },
+      envelope: {
+        attack: 0.03,
+        decay: 0.1,
+        sustain: 0.4,
+        release: 0.3
+      }
+    }).toDestination();
+
+    // Add a filter for brass-like quality
+    const filter = new Tone.Filter({
+      frequency: 1200,
+      type: 'lowpass',
+      rolloff: -12
+    }).toDestination();
+    
+    synth.connect(filter);
+    synth.volume.value = -26;
+
+    const now = Tone.now();
+    // "WAH-wah" - just two notes, same duration
+    synth.triggerAttackRelease('F3', '16n', now);
+    synth.triggerAttackRelease('C3', '16n', now + 0.1);
   }
 
   stop(soundType: SoundType) {

@@ -686,6 +686,17 @@ export default function LobbyPage() {
           return;
         }
 
+        // Check if the current player found the emoji this round
+        const currentPlayerScore = data.scores.find((s: any) => 
+          s.playerId === playerIdRef.current
+        );
+        const currentPlayerFound = currentPlayerScore?.roundScore?.found || false;
+        
+        // Play time up sound only for this player if they didn't find the emoji
+        if (!currentPlayerFound) {
+          audioManager.play(SoundType.TIME_UP);
+        }
+
         // Check if this is the final round
         const isFinalRound = data.round === 5;
         
