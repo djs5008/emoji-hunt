@@ -746,7 +746,7 @@ export default function LobbyPage() {
             if (player.id === data.playerId) {
               return {
                 ...player,
-                score: (data as any).totalScore || (player.score + data.points), // Use server's total if available
+                score: (data as any).totalScore, // Always use server's authoritative total score
               };
             }
             return player;
@@ -1198,6 +1198,22 @@ export default function LobbyPage() {
       audioManager.stop(SoundType.TICK);
     };
   }, [lobby?.gameState, roundTime]);
+
+  // Handle black background during countdown
+  useEffect(() => {
+    if (countdown !== null) {
+      // Add black background class when countdown is active
+      document.body.classList.add('bg-black');
+    } else {
+      // Remove black background class when countdown is done
+      document.body.classList.remove('bg-black');
+    }
+    
+    return () => {
+      // Cleanup on unmount
+      document.body.classList.remove('bg-black');
+    };
+  }, [countdown]);
 
   if (error) {
     return (

@@ -214,8 +214,8 @@ describe('Game Engine', () => {
       const result = await handleEmojiClick('test-lobby', 'player1', 'emoji1');
 
       expect(result.found).toBe(true);
-      expect(result.points).toBeGreaterThan(100); // Base + bonuses
-      expect(result.points).toBeLessThan(250); // Max possible
+      expect(result.points).toBeGreaterThan(50); // Base minimum
+      expect(result.points).toBeLessThan(300); // Max possible
 
       expect(mockSetLobby).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -397,9 +397,9 @@ describe('Game Engine', () => {
       const result = await handleEmojiClick('test-lobby', 'player1', 'emoji1');
 
       expect(result.found).toBe(true);
-      // With 10ms elapsed, points should be very close to 250 (might be 249 due to rounding)
-      expect(result.points).toBeGreaterThanOrEqual(249);
-      expect(result.points).toBeLessThanOrEqual(250);
+      // With 10ms elapsed (0.01s), first finder: 50 base + ~200 time bonus + 50 order = ~300
+      expect(result.points).toBeGreaterThanOrEqual(299);
+      expect(result.points).toBeLessThanOrEqual(300);
     });
 
     it('should award less points for slower finds', async () => {
@@ -423,8 +423,9 @@ describe('Game Engine', () => {
       const result = await handleEmojiClick('test-lobby', 'player1', 'emoji1');
 
       expect(result.found).toBe(true);
-      expect(result.points).toBeGreaterThanOrEqual(198);
-      expect(result.points).toBeLessThanOrEqual(202); // Allow for rounding
+      // With 15s elapsed, first finder: 50 base + ~70 time bonus + 50 order = ~170
+      expect(result.points).toBeGreaterThanOrEqual(168);
+      expect(result.points).toBeLessThanOrEqual(172); // Allow for rounding
     });
 
     it('should award less points for later finders', async () => {
@@ -451,9 +452,9 @@ describe('Game Engine', () => {
       const result = await handleEmojiClick('test-lobby', 'player1', 'emoji1');
 
       expect(result.found).toBe(true);
-      // 100 base + ~83 time bonus + 30 order bonus (third finder)
-      expect(result.points).toBeGreaterThan(210);
-      expect(result.points).toBeLessThan(220);
+      // With 5s elapsed, third finder: 50 base + ~150 time bonus + 30 order = ~230
+      expect(result.points).toBeGreaterThan(225);
+      expect(result.points).toBeLessThan(235);
     });
 
     it('should award minimum time bonus after 30 seconds', async () => {
@@ -477,7 +478,7 @@ describe('Game Engine', () => {
       const result = await handleEmojiClick('test-lobby', 'player1', 'emoji1');
 
       expect(result.found).toBe(true);
-      expect(result.points).toBe(150); // 100 base + 0 time + 50 order
+      expect(result.points).toBe(100); // 50 base + 0 time + 50 order
     });
   });
 });

@@ -179,34 +179,38 @@ export async function handleEmojiClick(
  * @param {number} timeToFind - Time taken to find the emoji (in seconds)
  * @param {number} playersFoundBefore - Number of players who found it first
  * 
- * @returns {number} Total points awarded (100-250 possible)
+ * @returns {number} Total points awarded (50-300 possible)
  * 
  * Scoring breakdown:
- * - Base: 100 points (guaranteed for correct find)
- * - Time bonus: 100 * (1 - time/30), linearly decreasing over 30 seconds
+ * - Base: 50 points (guaranteed minimum for correct find)
+ * - Time bonus: Up to 200 points with exponential decay (200 * (1-t/30)^1.5)
  * - Order bonus: 50 points for first, -10 for each subsequent player
  * 
  * @example
- * calculatePoints(5, 0)   // 233 points (fast, first finder)
- * calculatePoints(15, 2)  // 180 points (medium speed, third finder)
- * calculatePoints(25, 4)  // 116 points (slow, fifth finder)
+ * calculatePoints(1, 0)   // 291 points (very fast, first finder)
+ * calculatePoints(5, 0)   // 225 points (fast, first finder)
+ * calculatePoints(10, 1)  // 151 points (medium speed, second finder)
+ * calculatePoints(20, 2)  // 85 points (slow, third finder)
+ * calculatePoints(30, 4)  // 60 points (very slow, fifth finder)
  */
 function calculatePoints(
   timeToFind: number,
   playersFoundBefore: number
 ): number {
-  // Base reward for finding the target
-  let points = 100;
-
-  // Time bonus: Maximum 100 points, decreases linearly
-  // Full bonus at 0 seconds, no bonus at 30+ seconds
-  const timeBonus = Math.max(0, Math.floor(100 * (1 - timeToFind / 30)));
+  // Base reward for finding the target (reduced from 100 to 50)
+  let points = 50;
+  
+  // Time bonus: Exponential decay for more spread
+  // Maximum 200 points at 0s, rapidly decreasing
+  // At 5s: ~150 points, at 10s: ~100 points, at 20s: ~25 points, at 30s: 0 points
+  const timeFactor = Math.max(0, 1 - timeToFind / 30);
+  const timeBonus = Math.floor(200 * Math.pow(timeFactor, 1.5));
   points += timeBonus;
-
+  
   // Order bonus: Rewards early finders
   // First: +50, Second: +40, Third: +30, etc.
   const orderBonus = Math.max(0, 50 - playersFoundBefore * 10);
   points += orderBonus;
-
+  
   return points;
 }
