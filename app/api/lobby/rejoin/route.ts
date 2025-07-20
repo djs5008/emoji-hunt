@@ -63,6 +63,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Lobby not found' }, { status: 404 });
     }
     
+    // Log the actual game state for debugging
+    logger.info('Lobby state on rejoin', { 
+      lobbyId: upperLobbyId,
+      gameState: lobby.gameState,
+      currentRound: lobby.currentRound,
+      roundEndTime: lobby.roundEndTime,
+      playerId
+    });
+    
     // Verify player was previously in this lobby
     const player = lobby.players.find(p => p.id === playerId);
     if (!player) {

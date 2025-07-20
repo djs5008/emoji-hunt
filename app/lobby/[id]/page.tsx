@@ -67,8 +67,196 @@ export default function LobbyPage() {
   const sseClientRef = useRef<SSEClient | null>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const roundTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const stateTransitionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const startCountdownTimerRef = useRef<((startTime: number) => void) | null>(null);
+  const stateTransitionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lobbyRef = useRef<Lobby | null>(null);
+
+  // Check and start round
+  const checkAndStartRound = useCallback(async () => {
+    
+    // Get the latest lobby state
+    try {
+      const lobbyRes = await fetch(`/api/lobby/${lobbyId}`, {
+        credentials: 'include'
+      });
+      const currentLobby = await lobbyRes.json();
+      
+      if (!currentLobby || currentLobby.error) {
+        logger.error('Failed to get lobby state');
+        return;
+      }
+      
+      
+      const res = await fetch('/api/game/check-round-start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          lobbyId, 
+          roundNum: currentLobby.currentRound 
+        }),
+        credentials: 'include'
+      });
+      
+      const data = await res.json();
+    } catch (err) {
+      logger.error('Failed to check round start', err);
+    }
+  }, [lobbyId]);
+
+  // Preload round data
+  const preloadRoundData = useCallback(async () => {
+    
+    try {
+      const lobbyRes = await fetch(`/api/lobby/${lobbyId}`, {
+        credentials: 'include'
+      });
+      const currentLobby = await lobbyRes.json();
+      
+      if (!currentLobby || currentLobby.error) {
+        logger.error('Failed to get lobby state for preload');
+        return;
+      }
+      
+      const res = await fetch('/api/game/preload-round', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          lobbyId, 
+          roundNum: currentLobby.currentRound 
+        }),
+        credentials: 'include'
+      });
+      
+      const data = await res.json();
+    } catch (err) {
+      logger.error('Failed to preload round', err);
+    }
+  }, [lobbyId]);
+
+  // Check and end round
+  const checkAndEndRound = useCallback(async (roundNum: number) => {
+    try {
+      const res = await fetch('/api/game/check-round-end', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          lobbyId, 
+          roundNum 
+        }),
+        credentials: 'include'
+      });
+      
+      const data = await res.json();
+    } catch (err) {
+      logger.error('Failed to check round end', err);
+    }
+  }, [lobbyId]);
+
+  // Start countdown timer
+  const startCountdownTimer = useCallback((startTime: number) => {
+    logger.info('startCountdownTimer called', { startTime });
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+    }
+    
+    let hasPreloaded = false;
+
+    const updateCountdown = () => {
+      const elapsed = Date.now() - startTime;
+      const step = Math.floor(elapsed / 1000);
+
+      if (step < 4) {
+        const count = step === 0 ? 3 : step === 1 ? 2 : step === 2 ? 1 : 0;
+        setCountdown(count);
+        
+        // Preload round data when we hit "1" (step 2)
+        if (step === 2 && !hasPreloaded) {
+          hasPreloaded = true;
+          preloadRoundData();
+        }
+      } else {
+        setCountdown(null);
+        if (countdownIntervalRef.current) {
+          clearInterval(countdownIntervalRef.current);
+        }
+        // Try to start the round
+        checkAndStartRound();
+      }
+    };
+
+    updateCountdown();
+    countdownIntervalRef.current = setInterval(updateCountdown, 100);
+  }, [checkAndStartRound, preloadRoundData]);
+
+  // Start round timer
+  const startRoundTimer = useCallback((startTime: number, currentRoundNum: number) => {
+    if (roundTimerRef.current) {
+      clearInterval(roundTimerRef.current);
+    }
+
+    const updateTimer = async () => {
+      const remaining = Math.max(
+        0,
+        Math.ceil((startTime + 30000 - Date.now()) / 1000)
+      );
+      setRoundTime(remaining);
+
+      if (remaining === 0 && roundTimerRef.current) {
+        clearInterval(roundTimerRef.current);
+        // Try to end the round
+        try {
+          const res = await fetch('/api/game/check-round-end', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              lobbyId, 
+              roundNum: currentRoundNum 
+            }),
+            credentials: 'include'
+          });
+          
+          const data = await res.json();
+        } catch (err) {
+          console.error('[Game] Failed to check round end:', err);
+        }
+      }
+    };
+
+    updateTimer();
+    roundTimerRef.current = setInterval(updateTimer, 100);
+  }, [lobbyId]);
+
+  // Check and progress after round end
+  const checkAndProgress = useCallback(async (roundNum: number) => {
+    try {
+      const res = await fetch('/api/game/check-progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          lobbyId, 
+          roundNum 
+        }),
+        credentials: 'include'
+      });
+      
+      const data = await res.json();
+    } catch (err) {
+      console.error('[Game] Failed to check progress:', err);
+    }
+  }, [lobbyId]);
+
+  // Schedule state transition
+  const scheduleStateTransition = useCallback((type: string, roundNum: number, delay: number) => {
+    if (stateTransitionTimeoutRef.current) {
+      clearTimeout(stateTransitionTimeoutRef.current);
+    }
+
+    stateTransitionTimeoutRef.current = setTimeout(() => {
+      if (type === 'progress') {
+        checkAndProgress(roundNum);
+      }
+    }, delay);
+  }, [checkAndProgress]);
 
   // Check if player is host
   useEffect(() => {
@@ -78,10 +266,19 @@ export default function LobbyPage() {
     }
   }, [lobbyId]);
 
-  // Keep playerIdRef in sync
+  // Keep refs in sync
   useEffect(() => {
     playerIdRef.current = playerId;
   }, [playerId]);
+  
+  useEffect(() => {
+    lobbyRef.current = lobby;
+  }, [lobby]);
+
+  // Keep ref updated
+  useEffect(() => {
+    startCountdownTimerRef.current = startCountdownTimer;
+  }, [startCountdownTimer]);
 
   // Initial lobby fetch and rejoin
   useEffect(() => {
@@ -115,8 +312,19 @@ export default function LobbyPage() {
             logger.debug('Rejoin response', { rejoinData, hasError: !!rejoinData?.error });
             
             if (rejoinData.error) {
+              // Check if it's a 'Lobby not found' error
+              if (rejoinData.error === 'Lobby not found') {
+                logger.warn('Lobby not found, redirecting to home', { lobbyId });
+                router.push('/');
+                return null;
+              }
+              
               // Player not in lobby but lobby exists - redirect to join
-              logger.warn('Player not in lobby, redirecting', { lobbyId });
+              logger.warn('Player not in lobby, redirecting to join', { 
+                lobbyId, 
+                error: rejoinData.error,
+                playerId: rejoinData.playerId 
+              });
               router.push(`/?join=${lobbyId}`);
               return null;
             }
@@ -140,41 +348,97 @@ export default function LobbyPage() {
           setIsHost(true);
         }
 
-        // If game is in progress, restore the countdown/round state
-        if (lobbyData.gameState === 'countdown' && lobbyData.countdownStartTime) {
-          startCountdownTimer(lobbyData.countdownStartTime);
-        } else if (lobbyData.gameState === 'playing' && lobbyData.currentRound > 0) {
-          const currentRound = lobbyData.rounds?.[lobbyData.currentRound - 1];
-          if (currentRound) {
-            startRoundTimer(currentRound.startTime, lobbyData.currentRound);
+        // Restore UI state based on server timestamps
+        const now = Date.now();
+        
+        logger.info('Restoring game state on rejoin', {
+          gameState: lobbyData.gameState,
+          currentRound: lobbyData.currentRound,
+          countdownStartTime: lobbyData.countdownStartTime,
+          roundEndTime: lobbyData.roundEndTime,
+          now
+        });
+        
+        if (lobbyData.gameState === 'finished') {
+          setShowFinalScore(true);
+        } else if (lobbyData.gameState === 'countdown' && lobbyData.countdownStartTime) {
+          // Calculate where we are in the countdown (0-4 seconds)
+          const countdownElapsed = now - lobbyData.countdownStartTime;
+          
+          if (countdownElapsed >= 4000) {
+            // Countdown has expired - server still thinks we're in countdown
+            // This player needs to trigger the round start
+            logger.info('Countdown expired on rejoin, triggering round start', {
+              elapsed: countdownElapsed,
+              currentRound: lobbyData.currentRound
+            });
+            checkAndStartRound();
+          } else {
+            // Still in countdown - restore UI and timer
+            const step = Math.floor(countdownElapsed / 1000);
+            const count = Math.max(0, 3 - step);
+            setCountdown(count);
+            startCountdownTimer(lobbyData.countdownStartTime);
+          }
+        } else if (lobbyData.gameState === 'playing' && lobbyData.rounds?.length > 0) {
+          // Calculate remaining round time
+          const currentRound = lobbyData.rounds[lobbyData.currentRound - 1];
+          if (currentRound?.startTime) {
+            const roundElapsed = now - currentRound.startTime;
+            
+            if (roundElapsed >= 30000) {
+              // Round time has expired - server still thinks we're playing
+              // This player needs to trigger the round end
+              logger.info('Round time expired on rejoin, triggering round end', {
+                elapsed: roundElapsed,
+                roundNum: lobbyData.currentRound
+              });
+              checkAndEndRound(lobbyData.currentRound);
+            } else {
+              // Still playing - restore timer
+              const remaining = Math.ceil((30000 - roundElapsed) / 1000);
+              setRoundTime(remaining);
+              startRoundTimer(currentRound.startTime, lobbyData.currentRound);
+            }
           }
         } else if (lobbyData.gameState === 'roundEnd' && lobbyData.roundEndTime) {
-          // Show appropriate view based on time elapsed
-          const elapsed = Date.now() - lobbyData.roundEndTime;
-          const isFinalRound = lobbyData.currentRound === 5;
+          // Calculate where we are in the round end sequence
+          const roundEndElapsed = now - lobbyData.roundEndTime;
+          const totalDisplayTime = lobbyData.currentRound === 5 ? 3000 : 6000; // Final round: 3s, others: 6s
           
-          if (elapsed < 3000) {
+          if (roundEndElapsed >= totalDisplayTime) {
+            // Display time has expired - server still in roundEnd
+            // This player needs to trigger progression
+            logger.info('Round end display expired on rejoin, triggering progression', {
+              elapsed: roundEndElapsed,
+              roundNum: lobbyData.currentRound,
+              totalDisplayTime
+            });
+            checkAndProgress(lobbyData.currentRound);
+          } else if (roundEndElapsed < 3000) {
+            // Show answer phase (0-3 seconds)
             setShowCorrectAnswer(true);
-            setTimeout(() => {
-              setShowCorrectAnswer(false);
-              if (!isFinalRound) {
-                setShowRoundScore(true);
-              }
-            }, 3000 - elapsed);
-          } else if (elapsed < 6000 && !isFinalRound) {
+            const remainingAnswerTime = 3000 - roundEndElapsed;
+            
+            if (lobbyData.currentRound === 5) {
+              // Final round - schedule progression after answer
+              scheduleStateTransition('progress', lobbyData.currentRound, remainingAnswerTime);
+            } else {
+              // Rounds 1-4 - will show scoreboard after answer
+              scheduleStateTransition('progress', lobbyData.currentRound, 6000 - roundEndElapsed);
+            }
+          } else if (lobbyData.currentRound < 5) {
+            // Show scoreboard phase (3-6 seconds) - only for rounds 1-4
             setShowRoundScore(true);
+            scheduleStateTransition('progress', lobbyData.currentRound, 6000 - roundEndElapsed);
           }
-          
-          // Schedule progress check
-          const progressDelay = isFinalRound ? Math.max(0, 3000 - elapsed) : Math.max(0, 6000 - elapsed);
-          scheduleStateTransition('progress', lobbyData.currentRound, progressDelay);
         }
       })
       .catch(() => {
         // On any error, show error message
         setError('Failed to load lobby');
       });
-  }, [lobbyId, router]);
+  }, [lobbyId, router, startCountdownTimer, startRoundTimer, scheduleStateTransition, checkAndProgress, checkAndStartRound, checkAndEndRound]);
 
   // Connect to SSE only after successful rejoin
   useEffect(() => {
@@ -198,8 +462,13 @@ export default function LobbyPage() {
           if (response.ok) {
             const lobbyData = await response.json();
             setLobby(lobbyData);
+            // Set basic state based on lobby data
+            if (lobbyData.gameState === 'finished') {
+              setShowFinalScore(true);
+            }
           }
         } catch (err) {
+          logger.error('Failed to fetch lobby after SSE reconnection', err as Error);
         }
       },
       
@@ -213,30 +482,59 @@ export default function LobbyPage() {
       
       onGameStarted: (data) => {
         logger.info('Lobby: Game started event received', data);
-        setShowRoundScore(false);
-        setShowCorrectAnswer(false);
-        setCountdown(3); // Set initial countdown
-        setStartingGame(false); // Reset starting state when game actually starts
+        
+        // Check if this is a stale event by comparing with current lobby state
         setLobby((prev) => {
-          const newState = prev
-            ? {
-                ...prev,
-                gameState: 'countdown' as const,
-                currentRound: data.currentRound || 1,
-                rounds: data.currentRound > 1 ? prev.rounds : [],
-                countdownStartTime: data.countdownStartTime,
-              }
-            : null;
+          if (!prev) return null;
+          
+          // If we're already past this round, ignore this stale game-started event
+          if (prev.currentRound > data.currentRound) {
+            logger.debug('Ignoring stale game-started event', {
+              currentRound: prev.currentRound,
+              eventRound: data.currentRound,
+              currentState: prev.gameState
+            });
+            return prev;
+          }
+          
+          // If we're already in this round and not waiting for it to start, ignore the event
+          // This handles cases where we refresh during an active round
+          if (prev.currentRound === data.currentRound && 
+              prev.gameState !== 'waiting') {
+            logger.debug('Ignoring game-started event for round already started', {
+              currentRound: prev.currentRound,
+              eventRound: data.currentRound,
+              currentState: prev.gameState
+            });
+            return prev;
+          }
+          
+          // This is a valid game-started event, process it
+          setShowRoundScore(false);
+          setShowCorrectAnswer(false);
+          setCountdown(3); // Set initial countdown
+          setStartingGame(false); // Reset starting state when game actually starts
+          
+          const newState = {
+            ...prev,
+            gameState: 'countdown' as const,
+            currentRound: data.currentRound || 1,
+            rounds: data.currentRound > 1 ? prev.rounds : [],
+            countdownStartTime: data.countdownStartTime,
+          };
+          
           logger.debug('Lobby: Updated game state to countdown', { prevState: prev?.gameState, newState: newState?.gameState });
+          
+          // Use the ref to call the latest version of the function
+          if (startCountdownTimerRef.current) {
+            logger.debug('Lobby: Starting countdown timer');
+            startCountdownTimerRef.current(data.countdownStartTime);
+          } else {
+            logger.warn('Lobby: startCountdownTimerRef.current is null');
+          }
+          
           return newState;
         });
-        // Use the ref to call the latest version of the function
-        if (startCountdownTimerRef.current) {
-          logger.debug('Lobby: Starting countdown timer');
-          startCountdownTimerRef.current(data.countdownStartTime);
-        } else {
-          logger.warn('Lobby: startCountdownTimerRef.current is null');
-        }
       },
       
       onRoundPreloaded: (data) => {
@@ -290,6 +588,10 @@ export default function LobbyPage() {
       },
       
       onRoundEnded: (data) => {
+        logger.info('Round-ended event received', {
+          eventRound: data.round,
+          targetEmoji: data.targetEmoji
+        });
         
         // Clear the round timer if it's still running
         if (roundTimerRef.current) {
@@ -297,8 +599,48 @@ export default function LobbyPage() {
           roundTimerRef.current = null;
         }
         
+        // First check if we should process this event at all using the ref
+        const currentLobby = lobbyRef.current;
+        if (currentLobby) {
+          // If this is an old round event, ignore it completely
+          if (data.round < currentLobby.currentRound) {
+            logger.debug('Ignoring stale round-ended event (checking lobby ref)', { 
+              currentRound: currentLobby.currentRound, 
+              eventRound: data.round, 
+              currentState: currentLobby.gameState,
+              reason: 'event for past round'
+            });
+            return;
+          }
+        }
+        
         setLobby((prev) => {
           if (!prev) return null;
+          
+          // Only process this event if it's the current round ending
+          // Block if:
+          // - Event is for a previous round (stale)
+          // - We're already past this round
+          // - Game state shows we're still playing a different round
+          if (data.round < prev.currentRound) {
+            logger.debug('Ignoring stale round-ended event (in setState)', { 
+              currentRound: prev.currentRound, 
+              eventRound: data.round, 
+              currentState: prev.gameState,
+              reason: 'event for past round'
+            });
+            return prev;
+          }
+          
+          // Also ignore if already processed this round end
+          if (data.round === prev.currentRound && prev.gameState === 'roundEnd') {
+            logger.debug('Ignoring duplicate round-ended event', { 
+              currentRound: prev.currentRound, 
+              eventRound: data.round, 
+              currentState: prev.gameState
+            });
+            return prev;
+          }
 
           const updatedPlayers = prev.players.map((player) => {
             const scoreData = data.scores.find(
@@ -329,6 +671,18 @@ export default function LobbyPage() {
             players: updatedPlayers,
           };
         });
+
+        // Only trigger UI transitions if this event was just processed
+        // Skip if the event is for a past round when we're already in a new round
+        if (!lobby || data.round < lobby.currentRound) {
+          logger.debug('Skipping UI transitions for stale round-ended event', {
+            currentRound: lobby?.currentRound,
+            eventRound: data.round,
+            currentState: lobby?.gameState,
+            reason: !lobby ? 'no lobby state' : 'event for past round'
+          });
+          return;
+        }
 
         // Check if this is the final round
         const isFinalRound = data.round === 5;
@@ -370,7 +724,7 @@ export default function LobbyPage() {
             if (player.id === data.playerId) {
               return {
                 ...player,
-                score: player.score + data.points,
+                score: (data as any).totalScore || (player.score + data.points), // Use server's total if available
               };
             }
             return player;
@@ -385,40 +739,46 @@ export default function LobbyPage() {
           
           // Schedule animations after state update if this is the current player
           if (currentPlayerId && data.playerId === currentPlayerId) {
-            setShowSuccess(true);
-            setTimeout(() => {
-              setShowSuccess(false);
-            }, 2000);
-            if (data.emojiId) {
-              setPlayerFoundEmojiId(data.emojiId);
-            }
+            const newScore = (data as any).totalScore || (oldScore + data.points);
             
-            // Trigger score animation
-            const animationId = Date.now();
-            setScoreAnimation({ points: data.points, id: animationId });
-            
-            // Animate score counting up from old score to new score
-            const startScore = oldScore;
-            const endScore = oldScore + data.points;
-            const duration = 1000; // 1 second animation
-            const steps = 20;
-            const increment = (endScore - startScore) / steps;
-            let currentStep = 0;
-            
-            const countInterval = setInterval(() => {
-              currentStep++;
-              if (currentStep >= steps) {
-                setDisplayScore(endScore);
-                clearInterval(countInterval);
-              } else {
-                setDisplayScore(Math.floor(startScore + increment * currentStep));
+            // Only show animations if score actually increased
+            // This prevents animations when replaying old events
+            if (newScore > oldScore) {
+              setShowSuccess(true);
+              setTimeout(() => {
+                setShowSuccess(false);
+              }, 2000);
+              if (data.emojiId) {
+                setPlayerFoundEmojiId(data.emojiId);
               }
-            }, duration / steps);
-            
-            // Remove animation after 2 seconds
-            setTimeout(() => {
-              setScoreAnimation((prev) => prev?.id === animationId ? null : prev);
-            }, 2000);
+              
+              // Trigger score animation
+              const animationId = Date.now();
+              setScoreAnimation({ points: newScore - oldScore, id: animationId });
+              
+              // Animate score counting up from old score to new score
+              const startScore = oldScore;
+              const endScore = newScore;
+              const duration = 1000; // 1 second animation
+              const steps = 20;
+              const increment = (endScore - startScore) / steps;
+              let currentStep = 0;
+              
+              const countInterval = setInterval(() => {
+                currentStep++;
+                if (currentStep >= steps) {
+                  setDisplayScore(endScore);
+                  clearInterval(countInterval);
+                } else {
+                  setDisplayScore(Math.floor(startScore + increment * currentStep));
+                }
+              }, duration / steps);
+              
+              // Remove animation after 2 seconds
+              setTimeout(() => {
+                setScoreAnimation((prev) => prev?.id === animationId ? null : prev);
+              }, 2000);
+            }
           }
           
           return { ...prev, players: updatedPlayers };
@@ -498,7 +858,7 @@ export default function LobbyPage() {
         clearTimeout(stateTransitionTimeoutRef.current);
       }
     };
-  }, [lobbyId, router, hasRejoined]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lobbyId, router, hasRejoined]);
 
   // Handle cleanup on page unload with grace period for reconnection
   useEffect(() => {
@@ -524,180 +884,6 @@ export default function LobbyPage() {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [playerId, lobbyId]);
-
-  // Check and start round
-  const checkAndStartRound = useCallback(async () => {
-    
-    // Get the latest lobby state
-    try {
-      const lobbyRes = await fetch(`/api/lobby/${lobbyId}`, {
-        credentials: 'include'
-      });
-      const currentLobby = await lobbyRes.json();
-      
-      if (!currentLobby || currentLobby.error) {
-        logger.error('Failed to get lobby state');
-        return;
-      }
-      
-      
-      const res = await fetch('/api/game/check-round-start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          lobbyId, 
-          roundNum: currentLobby.currentRound 
-        }),
-        credentials: 'include'
-      });
-      
-      const data = await res.json();
-    } catch (err) {
-      logger.error('Failed to check round start', err);
-    }
-  }, [lobbyId]);
-
-  // Preload round data
-  const preloadRoundData = useCallback(async () => {
-    
-    try {
-      const lobbyRes = await fetch(`/api/lobby/${lobbyId}`, {
-        credentials: 'include'
-      });
-      const currentLobby = await lobbyRes.json();
-      
-      if (!currentLobby || currentLobby.error) {
-        logger.error('Failed to get lobby state for preload');
-        return;
-      }
-      
-      const res = await fetch('/api/game/preload-round', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          lobbyId, 
-          roundNum: currentLobby.currentRound 
-        }),
-        credentials: 'include'
-      });
-      
-      const data = await res.json();
-    } catch (err) {
-      logger.error('Failed to preload round', err);
-    }
-  }, [lobbyId]);
-
-  // Start countdown timer
-  const startCountdownTimer = useCallback((startTime: number) => {
-    logger.info('startCountdownTimer called', { startTime });
-    if (countdownIntervalRef.current) {
-      clearInterval(countdownIntervalRef.current);
-    }
-    
-    let hasPreloaded = false;
-
-    const updateCountdown = () => {
-      const elapsed = Date.now() - startTime;
-      const step = Math.floor(elapsed / 1000);
-
-      if (step < 4) {
-        const count = step === 0 ? 3 : step === 1 ? 2 : step === 2 ? 1 : 0;
-        setCountdown(count);
-        
-        // Preload round data when we hit "1" (step 2)
-        if (step === 2 && !hasPreloaded) {
-          hasPreloaded = true;
-          preloadRoundData();
-        }
-      } else {
-        setCountdown(null);
-        if (countdownIntervalRef.current) {
-          clearInterval(countdownIntervalRef.current);
-        }
-        // Try to start the round
-        checkAndStartRound();
-      }
-    };
-
-    updateCountdown();
-    countdownIntervalRef.current = setInterval(updateCountdown, 100);
-  }, [checkAndStartRound, preloadRoundData]);
-
-  // Keep ref updated
-  useEffect(() => {
-    startCountdownTimerRef.current = startCountdownTimer;
-  }, [startCountdownTimer]);
-
-  // Start round timer
-  const startRoundTimer = useCallback((startTime: number, currentRoundNum: number) => {
-    if (roundTimerRef.current) {
-      clearInterval(roundTimerRef.current);
-    }
-
-    const updateTimer = async () => {
-      const remaining = Math.max(
-        0,
-        Math.ceil((startTime + 30000 - Date.now()) / 1000)
-      );
-      setRoundTime(remaining);
-
-      if (remaining === 0 && roundTimerRef.current) {
-        clearInterval(roundTimerRef.current);
-        // Try to end the round
-        try {
-          const res = await fetch('/api/game/check-round-end', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              lobbyId, 
-              roundNum: currentRoundNum 
-            }),
-            credentials: 'include'
-          });
-          
-          const data = await res.json();
-        } catch (err) {
-          console.error('[Game] Failed to check round end:', err);
-        }
-      }
-    };
-
-    updateTimer();
-    roundTimerRef.current = setInterval(updateTimer, 100);
-  }, [lobbyId]);
-
-
-  // Check and progress after round end
-  const checkAndProgress = useCallback(async (roundNum: number) => {
-    try {
-      const res = await fetch('/api/game/check-progress', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          lobbyId, 
-          roundNum 
-        }),
-        credentials: 'include'
-      });
-      
-      const data = await res.json();
-    } catch (err) {
-      console.error('[Game] Failed to check progress:', err);
-    }
-  }, [lobbyId]);
-
-  // Schedule state transition
-  const scheduleStateTransition = useCallback((type: string, roundNum: number, delay: number) => {
-    if (stateTransitionTimeoutRef.current) {
-      clearTimeout(stateTransitionTimeoutRef.current);
-    }
-
-    stateTransitionTimeoutRef.current = setTimeout(() => {
-      if (type === 'progress') {
-        checkAndProgress(roundNum);
-      }
-    }, delay);
-  }, [checkAndProgress]);
 
   const handleStartGame = useCallback(async () => {
     if (!playerId || !lobby || startingGame) return;

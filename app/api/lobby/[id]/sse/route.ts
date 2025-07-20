@@ -114,17 +114,6 @@ export async function GET(
       
       // SSE comment syntax - keeps connection alive
       controller.enqueue(encoder.encode(': keepalive\n\n'));
-      
-      // Immediately check for any existing events
-      try {
-        const initialEvents = await lrange(`lobby:${lobbyId}:events`, 0, -1) as any[];
-        logger.info('Initial event check', { lobbyId, eventCount: initialEvents.length });
-        if (initialEvents.length > 0) {
-          controller.enqueue(encoder.encode(`event: debug\ndata: ${JSON.stringify({ message: 'Found initial events', count: initialEvents.length })}\n\n`));
-        }
-      } catch (err) {
-        logger.error('Failed to check initial events', err as Error);
-      }
 
       // Track connection health
       let lastSuccessfulWrite = Date.now();
@@ -175,7 +164,9 @@ export async function GET(
        * - Sends only new events to prevent duplicates
        * - Runs periodic cleanup tasks
        */
-      let lastEventTimestamp = 0;
+      // Initialize timestamp to 5 seconds ago to catch recent critical events
+      // This ensures we don't miss state transitions that just happened
+      let lastEventTimestamp = Date.now() - 5000;
       let lastCleanupCheck = Date.now();
       
       logger.info('Starting SSE polling', { lobbyId, playerId });

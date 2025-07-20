@@ -4,6 +4,7 @@ import { checkDisconnectedPlayers } from '@/app/lib/player-heartbeat';
 import { SessionManager } from '@/app/lib/player-session';
 import { rateLimit } from '@/app/lib/rate-limit-middleware';
 import { logger } from '@/app/lib/logger';
+import { getLobby } from '@/app/lib/game-state-async';
 
 /**
  * Removes a player from a lobby
@@ -77,6 +78,14 @@ export const POST = rateLimit('STANDARD')(async function handleLeaveLobby(
       // They have time to reconnect before being removed by heartbeat system
       await del(`player:${lobbyId}:${playerId}:heartbeat`);
       // Keep joinTime so they can rejoin
+      
+      // For solo games, we need to be extra careful not to remove the only player
+      const lobby = await getLobby(lobbyId);
+      if (lobby && lobby.players.length === 1) {
+        logger.info('Solo game detected, skipping immediate cleanup', { lobbyId, playerId });
+        // Don't check disconnected players for solo games
+        return NextResponse.json({ success: true });
+      }
       
       // Don't check disconnected players - let the periodic heartbeat system handle it
       // This gives the player time to rejoin before being removed

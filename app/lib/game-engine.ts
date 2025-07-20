@@ -156,6 +156,7 @@ export async function handleEmojiClick(
   await broadcastToLobby(lobbyId, SSE_EVENTS.EMOJI_FOUND, {
     playerId,
     points,
+    totalScore: player?.score || 0, // Include the authoritative total score
     foundCount: currentRound.foundBy.length,
     totalPlayers: lobby.players.length,
     emojiId: clickedEmoji.id,
