@@ -1,4 +1,4 @@
-import { rpush, expire } from './ioredis-client';
+import { rpush, lpush, expire } from './ioredis-client';
 import { logger } from './logger';
 
 /**
@@ -68,6 +68,46 @@ export async function broadcastToLobby(
   
   // Push to Redis event queue
   await rpush(redisKey, event);
+  
+  // Auto-expire after 30 seconds to ensure events aren't missed in development
+  await expire(`lobby:${lobbyId}:events`, 30);
+}
+
+/**
+ * Broadcasts a high-priority event to all connected players in a lobby
+ * 
+ * @description Similar to broadcastToLobby but uses lpush to add events
+ * to the front of the queue, ensuring they are processed immediately.
+ * Use for time-sensitive events like game-started where timing is critical.
+ * 
+ * @param {string} lobbyId - Target lobby for broadcast
+ * @param {string} eventType - Type of event (use SSE_EVENTS constants)
+ * @param {any} data - Event payload data
+ */
+export async function broadcastPriorityToLobby(
+  lobbyId: string,
+  eventType: string,
+  data: any
+): Promise<void> {
+  // Package event with metadata
+  const event = {
+    type: eventType,
+    data,
+    timestamp: Date.now(),
+  };
+  
+  const redisKey = `lobby:${lobbyId}:events`;
+  
+  logger.debug('Broadcasting priority event to lobby', {
+    lobbyId,
+    eventType,
+    dataPreview: data !== undefined ? JSON.stringify(data).substring(0, 100) : 'undefined',
+    redisKey,
+    event
+  });
+  
+  // Push to front of Redis event queue for immediate processing
+  await lpush(redisKey, event);
   
   // Auto-expire after 30 seconds to ensure events aren't missed in development
   await expire(`lobby:${lobbyId}:events`, 30);

@@ -10,7 +10,7 @@ import { generateRound } from '@/app/lib/game-state-async';
 import { getLobby } from '@/app/lib/ioredis-storage';
 import { setLobby } from '@/app/lib/ioredis-storage';
 import { getIoRedis } from '@/app/lib/ioredis-client';
-import { broadcastToLobby } from '@/app/lib/sse-broadcast';
+import { broadcastToLobby, broadcastPriorityToLobby } from '@/app/lib/sse-broadcast';
 import { Lobby, GameState } from '@/app/types/game';
 
 // Mock dependencies
@@ -66,7 +66,7 @@ describe('Game State Transitions', () => {
         currentRound: 1,
         rounds: [],
       }));
-      expect(broadcastToLobby).toHaveBeenCalledWith('test-lobby', 'game-started', expect.any(Object));
+      expect(broadcastPriorityToLobby).toHaveBeenCalledWith('test-lobby', 'game-started', expect.any(Object));
     });
 
     it('should not start game when player is not host', async () => {
@@ -123,7 +123,7 @@ describe('Game State Transitions', () => {
       expect(setLobby).toHaveBeenCalledWith(expect.objectContaining({
         gameState: 'playing',
       }));
-      expect(broadcastToLobby).toHaveBeenCalledWith('test-lobby', 'round-started', expect.any(Object));
+      expect(broadcastPriorityToLobby).toHaveBeenCalledWith('test-lobby', 'round-started', expect.any(Object));
     });
 
     it('should not start round before countdown expires', async () => {

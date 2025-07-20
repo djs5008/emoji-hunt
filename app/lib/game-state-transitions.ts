@@ -1,7 +1,7 @@
 import { generateRound } from './game-state-async';
 import { setLobby, getLobby } from './ioredis-storage';
 import { getIoRedis } from './ioredis-client';
-import { broadcastToLobby, SSE_EVENTS } from './sse-broadcast';
+import { broadcastToLobby, broadcastPriorityToLobby, SSE_EVENTS } from './sse-broadcast';
 import { logger } from './logger';
 
 /**
@@ -113,8 +113,8 @@ export async function startGame(lobbyId: string, playerId: string): Promise<bool
 
   await setLobby(lobby);
 
-  // Notify all players
-  await broadcastToLobby(lobbyId, SSE_EVENTS.GAME_STARTED, {
+  // Notify all players with priority to ensure immediate delivery
+  await broadcastPriorityToLobby(lobbyId, SSE_EVENTS.GAME_STARTED, {
     countdownStartTime: lobby.countdownStartTime,
     currentRound: 1,
   });
@@ -216,8 +216,8 @@ export async function checkAndStartRound(lobbyId: string, roundNum: number): Pro
 
     await setLobby(lobby);
 
-    // Notify all players with round data
-    await broadcastToLobby(lobbyId, SSE_EVENTS.ROUND_STARTED, {
+    // Notify all players with round data using priority
+    await broadcastPriorityToLobby(lobbyId, SSE_EVENTS.ROUND_STARTED, {
       round: lobby.rounds[roundNum - 1],
       currentRound: roundNum,
     });

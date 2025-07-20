@@ -20,9 +20,11 @@ import GameCanvas from '@/app/components/GameCanvas';
 import Countdown from '@/app/components/Countdown';
 import Scoreboard from '@/app/components/Scoreboard';
 import EmojiBackground from '@/app/components/EmojiBackground';
+import { Button } from '@/app/components/Button';
 import { Lobby } from '@/app/types/game';
 import { SSEClient } from '@/app/lib/sse-client';
 import { logger } from '@/app/lib/logger/client';
+import { audioManager, SoundType } from '@/app/lib/audio-manager';
 // Session management is now handled server-side
 
 /**
@@ -744,6 +746,9 @@ export default function LobbyPage() {
             // Only show animations if score actually increased
             // This prevents animations when replaying old events
             if (newScore > oldScore) {
+              // Play success sound
+              audioManager.play(SoundType.SUCCESS);
+              
               setShowSuccess(true);
               setTimeout(() => {
                 setShowSuccess(false);
@@ -799,6 +804,9 @@ export default function LobbyPage() {
       },
       
       onGameEnded: (data) => {
+        // Play game over sound
+        audioManager.play(SoundType.GAME_OVER);
+        
         setShowRoundScore(false);
         setShowFinalScore(true);
         setLobby((prev) =>
@@ -993,6 +1001,9 @@ export default function LobbyPage() {
         const result = await res.json();
         
         if (result.found) {
+          // Play success sound immediately
+          audioManager.play(SoundType.SUCCESS);
+          
           // Immediately update local state for instant feedback
           setPlayerFoundEmojiId(emojiId);
           
@@ -1046,6 +1057,9 @@ export default function LobbyPage() {
             
             return updatedLobby;
           });
+        } else {
+          // Play error sound for wrong emoji
+          audioManager.play(SoundType.ERROR);
         }
       } catch (err) {
         console.error('Error submitting click:', err);
@@ -1124,7 +1138,6 @@ export default function LobbyPage() {
     }
   }, [lobby?.id]);
 
-
   const currentPlayer = lobby?.players.find((p) => p.id === playerId);
   const currentRound =
     lobby && lobby.currentRound > 0 && lobby.currentRound <= lobby.rounds.length
@@ -1132,6 +1145,11 @@ export default function LobbyPage() {
       : null;
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   
+  // Initialize audio manager on mount
+  useEffect(() => {
+    audioManager.initialize();
+  }, []);
+
   // Initialize and sync display score with actual score
   useEffect(() => {
     if (currentPlayer) {
@@ -1146,18 +1164,34 @@ export default function LobbyPage() {
     }
   }, [currentPlayer?.score, scoreAnimation, displayScore]);
 
+  // Handle ticking sound when time is running out
+  useEffect(() => {
+    if (lobby?.gameState === 'playing' && roundTime <= 5 && roundTime > 0) {
+      // Start ticking when 5 seconds or less remain
+      audioManager.play(SoundType.TICK);
+    } else {
+      // Stop ticking when not in danger zone
+      audioManager.stop(SoundType.TICK);
+    }
+    
+    return () => {
+      // Cleanup: stop ticking when component unmounts
+      audioManager.stop(SoundType.TICK);
+    };
+  }, [lobby?.gameState, roundTime]);
+
   if (error) {
     return (
       <div className="h-full bg-gray-900 flex items-center justify-center p-4">
         <div className="bg-gray-800 rounded-lg p-8 max-w-md w-full text-center">
           <h1 className="text-2xl font-bold text-red-500 mb-4">Error</h1>
           <p className="text-gray-300 mb-6">{error}</p>
-          <button
+          <Button
             onClick={() => router.push('/')}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors"
+            variant="primary"
           >
             Back to Home
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -1429,12 +1463,14 @@ export default function LobbyPage() {
                   <span className="text-blue-400 font-mono tracking-wider text-3xl md:text-5xl">
                     {lobby.id}
                   </span>
-                  <button
+                  <Button
                     onClick={handleCopyLobbyCode}
-                    className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-700/50 rounded-lg"
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-400 hover:text-white"
                   >
                     {copied ? '✓' : '📋'}
-                  </button>
+                  </Button>
                 </span>
               </h1>
             </div>
@@ -1467,10 +1503,11 @@ export default function LobbyPage() {
 
             {isHost && (
               <div className={lobby.players.length === 1 ? "flex flex-col md:flex-row gap-3" : ""}>
-                <button
+                <Button
                   onClick={handleStartGame}
-                  className={`${lobby.players.length === 1 ? 'flex-1' : 'w-full'} bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-3 md:py-4 px-4 md:px-6 rounded-xl transition-all disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-sm md:text-base`}
+                  className={`${lobby.players.length === 1 ? 'flex-1' : 'w-full'} bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800`}
                   disabled={lobby.players.length < 2 || startingGame}
+                  size="lg"
                 >
                   {startingGame ? (
                     <span className="flex items-center justify-center gap-2">
@@ -1481,13 +1518,14 @@ export default function LobbyPage() {
                   ) : (
                     '🚀 Start Game'
                   )}
-                </button>
+                </Button>
                 
                 {lobby.players.length === 1 && (
-                  <button
+                  <Button
                     onClick={handleStartGame}
-                    className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-3 md:py-4 px-4 md:px-6 rounded-xl transition-all disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-sm md:text-base"
+                    className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
                     disabled={startingGame}
+                    size="lg"
                   >
                     {startingGame ? (
                       <span className="flex items-center justify-center gap-2">
@@ -1496,7 +1534,7 @@ export default function LobbyPage() {
                     ) : (
                       '🎮 Play Solo'
                     )}
-                  </button>
+                  </Button>
                 )}
               </div>
             )}

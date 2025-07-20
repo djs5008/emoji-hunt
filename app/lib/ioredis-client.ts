@@ -121,6 +121,16 @@ export async function rpush(key: string, ...values: any[]): Promise<number> {
   return await client.rpush(key, ...stringValues);
 }
 
+/** Push to beginning of list (for priority events) */
+export async function lpush(key: string, ...values: any[]): Promise<number> {
+  const client = getIoRedis();
+  // Stringify objects (matching Upstash behavior)
+  const stringValues = values.map(v => 
+    typeof v === 'string' ? v : JSON.stringify(v)
+  );
+  return await client.lpush(key, ...stringValues);
+}
+
 /** Clean up connection (for graceful shutdown) */
 export async function quit(): Promise<void> {
   if (redis) {

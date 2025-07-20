@@ -1,6 +1,23 @@
 import { render, screen } from '@testing-library/react';
 import Countdown from '@/app/components/Countdown';
 
+// Mock the audio manager
+jest.mock('@/app/lib/audio-manager', () => ({
+  audioManager: {
+    play: jest.fn(),
+    stop: jest.fn(),
+    initialize: jest.fn(),
+  },
+  SoundType: {
+    SUCCESS: 'success',
+    ERROR: 'error',
+    COUNTDOWN: 'countdown',
+    GAME_OVER: 'gameOver',
+    TICK: 'tick',
+    GO: 'go',
+  },
+}));
+
 describe('Countdown Component', () => {
   it('should render countdown number when count is greater than 0', () => {
     render(<Countdown count={3} />);
@@ -40,7 +57,7 @@ describe('Countdown Component', () => {
     const { container } = render(<Countdown count={3} />);
     const overlayDiv = container.firstChild as HTMLElement;
     
-    expect(overlayDiv).toHaveClass('fixed', 'inset-0', 'bg-black', 'flex', 'items-center', 'justify-center', 'z-50');
+    expect(overlayDiv).toHaveClass('fixed', 'inset-0', 'bg-black/95', 'flex', 'items-center', 'justify-center', 'z-50');
   });
 
   it('should have correct CSS classes for countdown number', () => {
@@ -54,7 +71,7 @@ describe('Countdown Component', () => {
     render(<Countdown count={0} />);
     const goDiv = screen.getByText('GO!');
     
-    expect(goDiv).toHaveClass('text-6xl', 'font-bold', 'animate-pulse');
+    expect(goDiv).toHaveClass('text-6xl', 'font-bold', 'animate-pulse', 'text-green-400');
   });
 
   it('should have text-white class on inner container', () => {
@@ -76,7 +93,7 @@ describe('Countdown Component', () => {
       const { container } = render(<Countdown count={2} />);
       
       // Text should be white on black background for high contrast
-      expect(container.firstChild).toHaveClass('bg-black');
+      expect(container.firstChild).toHaveClass('bg-black/95');
       expect(container.querySelector('.text-white')).toBeInTheDocument();
     });
   });
@@ -142,17 +159,12 @@ describe('Countdown Component', () => {
       // Should have outer div with overlay classes
       const outerDiv = container.firstChild as HTMLElement;
       expect(outerDiv.tagName).toBe('DIV');
-      expect(outerDiv).toHaveClass('fixed', 'inset-0', 'bg-black');
+      expect(outerDiv).toHaveClass('fixed', 'inset-0', 'bg-black/95');
       
-      // Should have inner div with text-white
-      const innerDiv = outerDiv.firstChild as HTMLElement;
-      expect(innerDiv.tagName).toBe('DIV');
-      expect(innerDiv).toHaveClass('text-white');
-      
-      // Should have text div with styling
-      const textDiv = innerDiv.firstChild as HTMLElement;
-      expect(textDiv.tagName).toBe('DIV');
-      expect(textDiv).toHaveClass('text-9xl', 'font-bold', 'animate-pulse');
+      // Should have flex container
+      const flexContainer = outerDiv.firstChild as HTMLElement;
+      expect(flexContainer.tagName).toBe('DIV');
+      expect(flexContainer).toHaveClass('flex', 'flex-col', 'items-center');
     });
   });
 });

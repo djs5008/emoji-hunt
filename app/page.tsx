@@ -13,6 +13,7 @@
 import { useState, useRef, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import EmojiBackground from './components/EmojiBackground';
+import { Button } from './components/Button';
 // Session management is now handled server-side
 
 /**
@@ -303,37 +304,41 @@ function HomePageContent() {
         
         {mode === 'home' && (
           <div className="space-y-4">
-            <button
+            <Button
               onClick={() => setMode('create')}
               disabled={isProcessing}
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-bold py-4 px-6 rounded-xl transition-all transform hover:scale-[1.02] disabled:hover:scale-100 shadow-lg"
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 transform hover:scale-[1.02] disabled:hover:scale-100 shadow-lg"
+              size="lg"
             >
               <div className="flex items-center justify-center gap-3">
                 <span className="text-2xl">🏠</span>
                 <span className="text-lg">{isProcessing ? 'Creating...' : 'Create New Lobby'}</span>
               </div>
-            </button>
+            </Button>
             
-            <button
+            <Button
               onClick={() => setMode('join')}
-              className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-4 px-6 rounded-xl transition-all transform hover:scale-[1.02] shadow-lg"
+              className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 transform hover:scale-[1.02] shadow-lg"
+              size="lg"
             >
               <div className="flex items-center justify-center gap-3">
                 <span className="text-2xl">🎮</span>
                 <span className="text-lg">Join Existing Lobby</span>
               </div>
-            </button>
+            </Button>
           </div>
         )}
 
         {mode === 'create' && (
           <div className="space-y-6 animate-fadeIn" ref={formRef}>
-            <button
+            <Button
               onClick={resetForm}
-              className="text-gray-400 hover:text-white transition-colors text-sm flex items-center gap-2"
+              variant="ghost"
+              size="sm"
+              className="text-gray-400 hover:text-white flex items-center gap-2"
             >
               ← Back
-            </button>
+            </Button>
             
             <div>
               <label htmlFor="nickname" className="block text-gray-300 mb-2 font-medium">
@@ -352,24 +357,27 @@ function HomePageContent() {
               />
             </div>
             
-            <button
+            <Button
               onClick={handleCreateLobby}
               disabled={isProcessing || !nickname.trim()}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg transition-all"
+              className="w-full"
+              size="lg"
             >
               {isProcessing ? 'Creating...' : 'Create Lobby'}
-            </button>
+            </Button>
           </div>
         )}
 
         {mode === 'join' && (
           <div className="space-y-6 animate-fadeIn" ref={formRef}>
-            <button
+            <Button
               onClick={resetForm}
-              className="text-gray-400 hover:text-white transition-colors text-sm flex items-center gap-2"
+              variant="ghost"
+              size="sm"
+              className="text-gray-400 hover:text-white flex items-center gap-2"
             >
               ← Back
-            </button>
+            </Button>
             
             <div>
               <label htmlFor="join-nickname" className="block text-gray-300 mb-2 font-medium">
@@ -404,13 +412,14 @@ function HomePageContent() {
               />
             </div>
             
-            <button
+            <Button
               onClick={handleJoinLobby}
               disabled={isProcessing || !nickname.trim() || !lobbyCode.trim()}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg transition-all"
+              className="w-full bg-green-600 hover:bg-green-700"
+              size="lg"
             >
               {isProcessing ? 'Joining...' : 'Join Lobby'}
-            </button>
+            </Button>
           </div>
         )}
       </div>

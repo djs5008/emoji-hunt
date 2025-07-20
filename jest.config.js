@@ -30,6 +30,7 @@ const customJestConfig = {
     '@upstash/redis': '<rootDir>/app/__mocks__/@upstash/redis.ts',
     '^nanoid$': '<rootDir>/app/__mocks__/nanoid.ts',
     '^bad-words$': '<rootDir>/app/__mocks__/bad-words.ts',
+    '^tone$': '<rootDir>/app/__mocks__/tone.js',
   },
   testEnvironmentOptions: {
     url: 'http://localhost:3000',

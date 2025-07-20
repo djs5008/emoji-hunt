@@ -1,6 +1,7 @@
 'use client';
 
 import { Player } from '@/app/types/game';
+import { Button } from '@/app/components/Button';
 
 /**
  * Scoreboard Component - Displays player rankings and scores
@@ -122,26 +123,28 @@ export default function Scoreboard({ players, currentRound, isFinal, onPlayAgain
           <div className="mt-8 text-center">
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               {onPlayAgain && (
-                <button
+                <Button
                   onClick={onPlayAgain}
-                  className="min-w-[160px] bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold py-3 px-8 rounded-xl transition-all transform hover:scale-105 shadow-lg border border-green-500/30"
+                  className="min-w-[160px] bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 transform hover:scale-105 shadow-lg border border-green-500/30"
+                  size="lg"
                 >
                   <span className="flex items-center justify-center gap-2">
                     <span>🎮</span>
                     <span>Play Again</span>
                   </span>
-                </button>
+                </Button>
               )}
               {onMainMenu && (
-                <button
+                <Button
                   onClick={onMainMenu}
-                  className="min-w-[160px] bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-bold py-3 px-8 rounded-xl transition-all transform hover:scale-105 shadow-lg border border-blue-500/30"
+                  className="min-w-[160px] bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 transform hover:scale-105 shadow-lg border border-blue-500/30"
+                  size="lg"
                 >
                   <span className="flex items-center justify-center gap-2">
                     <span>🏠</span>
                     <span>Main Menu</span>
                   </span>
-                </button>
+                </Button>
               )}
             </div>
           </div>
