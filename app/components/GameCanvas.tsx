@@ -179,7 +179,12 @@ export default function GameCanvas({
 
       // Report click with emoji ID or empty string for miss
       if (foundEmoji) {
-        onEmojiClick(foundEmoji.id, x, y, pageX, pageY);
+        // Calculate emoji center position in screen coordinates
+        const emojiCenterX = (foundEmoji.x + foundEmoji.fontSize / 2) * scale + rect.left;
+        const emojiCenterY = (foundEmoji.y - foundEmoji.fontSize * 0.3) * scale + rect.top;
+        
+        // Pass emoji center position for confetti
+        onEmojiClick(foundEmoji.id, x, y, emojiCenterX, emojiCenterY);
       } else {
         onEmojiClick('', x, y, pageX, pageY);
       }

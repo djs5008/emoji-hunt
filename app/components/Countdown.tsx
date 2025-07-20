@@ -29,11 +29,12 @@ export default function Countdown({ count }: CountdownProps) {
       case 3:
         return { red: true, yellow: false, green: false };
       case 2:
-        return { red: false, yellow: true, green: false };
       case 1:
+        return { red: false, yellow: true, green: false };
+      case 0:
         return { red: false, yellow: false, green: true };
       default:
-        return { red: false, yellow: false, green: true };
+        return { red: false, yellow: false, green: false };
     }
   };
 

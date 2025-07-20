@@ -198,9 +198,9 @@ export async function checkAndStartRound(lobbyId: string, roundNum: number): Pro
       return false;
     }
 
-    // Ensure full countdown completed (4 seconds)
+    // Ensure full countdown completed (3.5 seconds - Go! is only 500ms)
     const countdownElapsed = Date.now() - (lobby.countdownStartTime || 0);
-    if (countdownElapsed < 4000) {
+    if (countdownElapsed < 3500) {
       return false;
     }
 

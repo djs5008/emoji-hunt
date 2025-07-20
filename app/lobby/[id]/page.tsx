@@ -165,11 +165,11 @@ export default function LobbyPage() {
 
     const updateCountdown = () => {
       const elapsed = Date.now() - startTime;
-      const totalSeconds = 4; // Total countdown duration (3, 2, 1, GO!)
+      const totalMs = 3500; // Total countdown duration (3, 2, 1, GO! but Go is only 500ms)
       
-      if (elapsed < totalSeconds * 1000) {
+      if (elapsed < totalMs) {
         // Calculate which number should be showing
-        // 0-1000ms = 3, 1000-2000ms = 2, 2000-3000ms = 1, 3000-4000ms = 0 (GO!)
+        // 0-1000ms = 3, 1000-2000ms = 2, 2000-3000ms = 1, 3000-3500ms = 0 (GO!)
         const secondsElapsed = Math.floor(elapsed / 1000);
         const count = Math.max(0, 3 - secondsElapsed);
         setCountdown(count);
@@ -371,10 +371,10 @@ export default function LobbyPage() {
         if (lobbyData.gameState === 'finished') {
           setShowFinalScore(true);
         } else if (lobbyData.gameState === 'countdown' && lobbyData.countdownStartTime) {
-          // Calculate where we are in the countdown (0-4 seconds)
+          // Calculate where we are in the countdown (0-3.5 seconds)
           const countdownElapsed = now - lobbyData.countdownStartTime;
           
-          if (countdownElapsed >= 4000) {
+          if (countdownElapsed >= 3500) {
             // Countdown has expired - server still thinks we're in countdown
             // This player needs to trigger the round start
             logger.info('Countdown expired on rejoin, triggering round start', {

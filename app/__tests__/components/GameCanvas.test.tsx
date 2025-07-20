@@ -178,8 +178,8 @@ describe('GameCanvas', () => {
       'emoji-1',
       50,
       50,
-      50,
-      50
+      74,  // emoji center X position
+      35.6 // emoji center Y position
     );
   });
 
@@ -300,8 +300,8 @@ describe('GameCanvas', () => {
       'emoji-1',
       50,
       50,
-      50,
-      50
+      74,  // emoji center X position
+      35.6 // emoji center Y position
     );
   });
 
